@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -47,7 +46,6 @@ interface Message {
   timestamp: string;
 }
 
-// Helper to format current time for message timestamps
 const getCurrentTime = (): string => {
   const now = new Date();
   return now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -61,13 +59,11 @@ const TelegramBot: React.FC = () => {
   const [activeTab, setActiveTab] = useState("chat");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
-  // Initialize user or load existing user data
   useEffect(() => {
     const existingUser = getUser();
     if (existingUser) {
       setUser(existingUser);
       
-      // Add welcome back message if user has completed setup
       if (existingUser.birthDate && existingUser.dialect) {
         const dialectInfo = getDialectInfo(existingUser.dialect);
         const greeting = getDialectGreeting(existingUser.dialect);
@@ -78,12 +74,18 @@ const TelegramBot: React.FC = () => {
       const newUser = createNewUser();
       setUser(newUser);
       
-      // Add initial welcome message for new users
-      addBotMessage("مرحباً بك في النجم العربي 🌙✨\nالمنجم العربي الشخصي الخاص بك!\n\nاكتب /start للبدء");
+      addBotMessage(
+        "مرحباً بك في النجم العربي 🌙✨\n" +
+        "مرحبًا بك في عالم التنجيم الشخصي!\n\n" +
+        "هذا التطبيق يقدم لك:\n" +
+        "• قراءات فلكية مخصصة 🔮\n" +
+        "• توقعات يومية دقيقة ✨\n" +
+        "• دعم لعدة لهجات عربية 🗣️\n\n" +
+        "اكتب /start للبدء برحلتك الفلكية!"
+      );
     }
   }, []);
   
-  // Scroll to bottom of messages when new ones are added
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
@@ -117,23 +119,18 @@ const TelegramBot: React.FC = () => {
   const handleUserMessage = (message: string) => {
     addUserMessage(message);
     
-    // Check if message is a command
     if (message.startsWith("/")) {
       handleCommand(message);
     } else {
-      // For regular messages, check if user has completed setup
       if (!user?.birthDate || !user?.dialect) {
         addBotMessage("لم تكمل إعداد ملفك الشخصي بعد. الرجاء كتابة /start للبدء.");
       } else {
-        // Handle regular message as question if user has premium access
         if (canAccessFeature(user.subscriptionTier, "questions")) {
-          // Simulate response to question
           setTimeout(() => {
             const dialectInfo = getDialectInfo(user.dialect!);
             addBotMessage(`${dialectInfo?.flag || "✨"} إجابة على سؤالك:\n\n${message.length % 2 === 0 ? "النجوم تشير إلى أن هذا وقت مناسب للمضي قدماً. القمر في بيتك الخامس يدعم القرارات الجديدة. ✨🌙" : "الكواكب تنصحك بالتروي قليلاً. زحل في وضع معاكس يشير إلى ضرورة التأني والتفكير مرة أخرى. 🪐✨"}`);
           }, 1000);
         } else {
-          // Prompt to upgrade
           addBotMessage(getUpgradeMessage(user.subscriptionTier, "questions"));
           setDialogContent(
             <SubscriptionCard 
@@ -185,7 +182,6 @@ const TelegramBot: React.FC = () => {
     }
   };
   
-  // Command handlers
   const startOnboarding = () => {
     addBotMessage("✨ مرحباً بك في النجم العربي ✨\n\nلنبدأ بإعداد ملفك الشخصي لقراءة فلكية دقيقة.");
     
@@ -200,7 +196,6 @@ const TelegramBot: React.FC = () => {
             birthPlace: data.birthPlace
           } : null);
           
-          // After birth details, show dialect selector
           setDialogContent(
             <DialectSelector
               onSelect={(dialect) => {
@@ -208,7 +203,6 @@ const TelegramBot: React.FC = () => {
                 setUser(prev => prev ? { ...prev, dialect } : null);
                 setIsDialogOpen(false);
                 
-                // Complete onboarding
                 const dialectInfo = getDialectInfo(dialect);
                 addBotMessage(`✨ تم إكمال الإعداد بنجاح! ${dialectInfo?.flag || ""}\n\n${getDialectGreeting(dialect)}`);
               }}
@@ -289,9 +283,7 @@ const TelegramBot: React.FC = () => {
       return;
     }
     
-    // Check if user can access this horoscope type
     if (!canAccessHoroscopeType(user.subscriptionTier, type)) {
-      // Show upgrade message
       addBotMessage(getUpgradeMessage(
         user.subscriptionTier,
         type === "daily" ? "daily" : "all_topics"
@@ -304,7 +296,6 @@ const TelegramBot: React.FC = () => {
             setIsDialogOpen(false);
             addBotMessage(`✨ تم ترقية اشتراكك بنجاح! شكراً لدعمك. ✨`);
             
-            // Now show horoscope since they upgraded
             setTimeout(() => showHoroscope(type), 1000);
           }} 
         />
@@ -333,7 +324,6 @@ const TelegramBot: React.FC = () => {
     );
     setIsDialogOpen(true);
     
-    // Also send a chat message with the horoscope
     const typeEmojis = {
       daily: "✨",
       love: "❤️",
@@ -358,7 +348,6 @@ const TelegramBot: React.FC = () => {
           setIsDialogOpen(false);
           addUserMessage(question);
           
-          // Simulate response
           setTimeout(() => {
             const dialectInfo = getDialectInfo(user.dialect!);
             addBotMessage(`${dialectInfo?.flag || "✨"} إجابة سؤالك:\n\n${question.length % 2 === 0 ? "القمر في برجك يشير إلى فترة من التغيير الإيجابي. هذا وقت مناسب للمبادرة والتقدم في أهدافك. ✨🌙" : "حركة المريخ حالياً تنصحك بالحذر في الخطوات القادمة. تأكد من دراسة جميع الخيارات قبل اتخاذ القرار. 🔮✨"}`);
