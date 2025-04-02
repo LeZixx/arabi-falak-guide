@@ -16,19 +16,20 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({
   return (
     <div className={cn(
       "flex w-full max-w-[85%]", 
-      isUser ? "ml-auto justify-end" : "mr-auto justify-start"
+      // In RTL, user messages should be on the left, bot messages on the right
+      isUser ? "mr-auto justify-start" : "ml-auto justify-end"
     )}>
       <div
         className={cn(
-          "rounded-lg px-4 py-2 text-right",
+          "rounded-lg px-4 py-2",
           isUser 
             ? "bg-primary text-primary-foreground" 
             : "bg-secondary text-secondary-foreground"
         )}
       >
-        <p className="whitespace-pre-wrap">{message}</p>
+        <p className="whitespace-pre-wrap text-right">{message}</p>
         {timestamp && (
-          <div className="text-right mt-1">
+          <div className="text-left mt-1">
             <span className="text-xs opacity-70">{timestamp}</span>
           </div>
         )}
