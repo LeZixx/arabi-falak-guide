@@ -1,73 +1,84 @@
-# Welcome to your Lovable project
 
-## Project info
+# النجم العربي - Arabic Astrology Telegram Bot Simulator
 
-**URL**: https://lovable.dev/projects/00eb840a-ae9d-45b6-ad72-efc6bb85397e
+This is a simulator for an Arabic astrology Telegram bot. It demonstrates how such a bot would work, with features like:
 
-## How can I edit this code?
+- Support for 21 Arabic dialects
+- Personalized horoscope based on birth details
+- Multiple horoscope types (daily, love, career, health)
+- Subscription tiers with premium features
+- Open-ended questions in higher subscription tiers
 
-There are several ways of editing your application.
+## Features
 
-**Use Lovable**
+### User Data Collection
+- Collects date of birth, time of birth, and birthplace
+- Stores dialect preference from 21 Arabic dialects
+- Saves data persistently in localStorage (would be Firebase in production)
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/00eb840a-ae9d-45b6-ad72-efc6bb85397e) and start prompting.
+### Dialect Support
+- Full support for 21 Arabic dialects, including all regional variations
+- Modern Standard Arabic (Fusha) option
+- Dialect-specific responses and greetings
 
-Changes made via Lovable will be committed automatically to this repo.
+### Horoscope Types
+- Daily horoscope
+- Love horoscope
+- Career horoscope
+- Health horoscope
+- Personalized questions and answers
 
-**Use your preferred IDE**
+### Subscription Tiers
+- Free tier: Weekly horoscope
+- Tier 1: Daily horoscope
+- Tier 2: Daily + 1 topic
+- Tier 3: Daily + all topics
+- Tier 4: All features + unlimited questions
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### Commands
+- `/start` – Begin onboarding
+- `/mydata` – View saved information
+- `/change_dialect` – Switch dialect
+- `/subscribe` – View/upgrade subscription
+- `/horoscope` – Get daily reading
+- `/love`, `/career`, `/health` – Topic horoscopes
+- `/ask` – Ask custom questions (premium)
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+## Implementation Details
 
-Follow these steps:
+### Frontend
+- Built with React + TypeScript
+- Styled with Tailwind CSS and shadcn/ui components
+- Mobile-responsive design mimicking Telegram UI
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+### User Experience
+- Realistic chat interface
+- Simulated typing and response delays
+- Spiritual emojis and mystical styling
+- Arabic RTL support
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+### Data Storage
+- User data stored in localStorage (for demo)
+- Production version would use Firebase Realtime Database
 
-# Step 3: Install the necessary dependencies.
-npm i
+### Subscription Management
+- Simulated subscription management
+- Production version would integrate Stripe or Telegram's payment system
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
+## Setup for Telegram Production
 
-**Edit a file directly in GitHub**
+To deploy this as a real Telegram bot, you would need to:
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+1. Create a new Telegram bot via BotFather
+2. Get your API Token
+3. Set up a Node.js or Python backend to handle the Telegram Bot API
+4. Integrate OpenAI GPT-4 for responses
+5. Connect to a real database (Firebase recommended)
+6. Set up payment processing with Stripe or Telegram payments
+7. Deploy to a hosting service
 
-**Use GitHub Codespaces**
+## Credits
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/00eb840a-ae9d-45b6-ad72-efc6bb85397e) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes it is!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+- Designed and developed as a demonstration of Arabic astrology bot capabilities
+- Supports all major Arabic dialects
+- Respectful, spiritual tone with cultural sensitivity
