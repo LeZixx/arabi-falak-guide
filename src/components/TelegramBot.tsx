@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -45,6 +46,7 @@ import {
   SUBSCRIPTION_TIERS,
   getCharacterLimit
 } from "@/utils/subscription-utils";
+import { calculateNatalChart } from "@/utils/swiss-ephemeris-utils";
 import { Dialect, User, HoroscopeType } from "@/types";
 
 interface Message {
@@ -68,6 +70,30 @@ const generateResponse = (
   }
   
   return content.substring(0, characterLimit - 3) + "...";
+};
+
+// Function to generate a basic birth chart summary
+const generateBirthChartSummary = (user: User): string => {
+  if (!user.birthDate || !user.birthTime || !user.birthPlace) {
+    return "";
+  }
+
+  const chart = calculateNatalChart(user.birthDate, user.birthTime, user.birthPlace);
+  const zodiacSign = getZodiacSign(user.birthDate);
+  const zodiacEmoji = getZodiacEmoji(zodiacSign);
+  
+  // Get the main planetary positions
+  const sun = chart.planets.find(p => p.planet === "Sun");
+  const moon = chart.planets.find(p => p.planet === "Moon");
+  const mercury = chart.planets.find(p => p.planet === "Mercury");
+  
+  return `✨ *خريطتك الفلكية الأساسية* ✨\n\n` +
+    `برجك: ${zodiacSign} ${zodiacEmoji}\n` +
+    `الطالع: ${chart.ascendant} ↗️\n` +
+    `الشمس في: ${sun?.sign} ${sun?.retrograde ? "☿ᴿ" : ""}\n` +
+    `القمر في: ${moon?.sign} ${moon?.retrograde ? "☿ᴿ" : ""}\n` +
+    `عطارد في: ${mercury?.sign} ${mercury?.retrograde ? "☿ᴿ" : ""}\n\n` +
+    `هذه معلومات أساسية عن خريطتك الفلكية. ماذا تريد أن تعرف المزيد عنه؟ يمكنك استخدام الأوامر التالية:`;
 };
 
 const TelegramBot: React.FC = () => {
@@ -95,10 +121,16 @@ const TelegramBot: React.FC = () => {
         
         addBotMessage(`مرحباً بعودتك ${dialectInfo?.flag || "✨"}\n${greeting}${trialInfo}`);
         
+        // Show birth chart summary on login
+        setTimeout(() => {
+          const birthChartSummary = generateBirthChartSummary(existingUser);
+          addBotMessage(birthChartSummary);
+        }, 1000);
+        
         if (!inTrial && existingUser.lastMessageDate !== new Date().toISOString().split('T')[0]) {
           setTimeout(() => {
             addBotMessage("لقد انتهت فترة التجربة المجانية الخاصة بك ❗ الآن لديك حد يومي من 3 أسئلة فقط. يمكنك الترقية للحصول على المزيد من الميزات.");
-          }, 1500);
+          }, 2500);
         }
       } else {
         addBotMessage(
@@ -209,7 +241,7 @@ const TelegramBot: React.FC = () => {
           const forecastRange = user.subscriptionTier === 3 ? "عامين" : "7 أيام";
           
           addBotMessage(`إجابة على سؤالك ${dialectInfo?.flag || "✨"}\n\n${message.length % 2 === 0 ? 
-            `النجوم تشير إلى أن هذا وقت مناسب للمضي قدماً. القمر في بيتك الخامس يدعم القرارات الجديدة. توقعات لـ ${forecastRange} القادمة تبدو إيجابية 🌙✨` : 
+            `النجوم تشير إلى أن هذا وقت مناسب للمضي قدماً. القمر في بيتك الخامس يدعم القرارات الجديدة. توقعات للـ ${forecastRange} القادمة تبدو إيجابية 🌙✨` : 
             `الكواكب تنصحك بالتروي قليلاً. زحل في وضع معاكس يشير إلى ضرورة التأني والتفكير مرة أخرى. خلال الـ ${forecastRange} القادمة، قد تواجه بعض التحديات 🪐✨`}`);
         }, 1000);
       }
@@ -271,13 +303,34 @@ const TelegramBot: React.FC = () => {
                 setUser(prev => prev ? { ...prev, dialect } : null);
                 setIsDialogOpen(false);
                 
+                const updatedUser = getUser();
+                if (!updatedUser) return;
+                
                 const dialectInfo = getDialectInfo(dialect);
-                const inTrial = isInTrialPeriod(user.firstLoginDate);
+                const inTrial = isInTrialPeriod(updatedUser.firstLoginDate);
                 const trialInfo = inTrial ? 
                   "\n\nأنت حالياً في فترة التجربة المجانية (7 أيام) مع إمكانية وصول كاملة ✨" : 
                   "";
                   
                 addBotMessage(`تم إكمال الإعداد بنجاح ✨ ${dialectInfo?.flag || ""}\n\n${getDialectGreeting(dialect)}${trialInfo}`);
+                
+                // Show birth chart summary after onboarding
+                setTimeout(() => {
+                  const birthChartSummary = generateBirthChartSummary(updatedUser);
+                  addBotMessage(birthChartSummary);
+                  
+                  // Show available commands after birth chart
+                  setTimeout(() => {
+                    addBotMessage(
+                      "يمكنك استخدام الأوامر التالية:\n" +
+                      "/horoscope - لقراءتك اليومية 🔮\n" +
+                      "/love - لتوقعات الحب والعلاقات ❤️\n" +
+                      "/career - لتوقعات العمل والمهنة 💼\n" +
+                      "/health - لتوقعات الصحة والعافية 🌿\n" +
+                      "/ask - لطرح سؤال مخصص ❓"
+                    );
+                  }, 1500);
+                }, 1500);
               }}
               selectedDialect={user?.dialect}
             />
@@ -317,6 +370,12 @@ const TelegramBot: React.FC = () => {
       (user.subscriptionTier === 0 && !inTrial ? `الأسئلة المتبقية اليوم: ${3 - user.messageCountToday}/3 📝\n` : "") +
       (user.subscriptionTier > 0 && tierInfo.questionsPerMonth ? `الأسئلة المتبقية هذا الشهر: ${tierInfo.questionsPerMonth - user.totalMessagesThisMonth}/${tierInfo.questionsPerMonth} 📝\n` : "")
     );
+    
+    // Add birth chart after user data
+    setTimeout(() => {
+      const birthChartSummary = generateBirthChartSummary(user);
+      addBotMessage(birthChartSummary);
+    }, 1000);
   };
   
   const changeDialect = () => {
@@ -417,7 +476,7 @@ const TelegramBot: React.FC = () => {
     const forecastInfo = `(توقعات لـ ${forecastRange})`;
     
     const dialectInfo = getDialectInfo(user.dialect);
-    addBotMessage(`${horoscope.title} ${typeEmojis[type]} ${dialectInfo?.flag || ""} ${forecastInfo}\n\n${horoscope.content}\n\nالرقم المحظوظ: ${horoscope.luckyNumber} 🔮\nالنجم المحظوظ: ${horoscope.luckyStar} 🌟\nاللو�� المحظوظ: ${horoscope.luckyColor} 🎨`);
+    addBotMessage(`${horoscope.title} ${typeEmojis[type]} ${dialectInfo?.flag || ""} ${forecastInfo}\n\n${horoscope.content}\n\nالرقم المحظوظ: ${horoscope.luckyNumber} 🔮\nالنجم المحظوظ: ${horoscope.luckyStar} 🌟\nاللون المحظوظ: ${horoscope.luckyColor} 🎨`);
   };
   
   const askQuestion = () => {
@@ -541,10 +600,14 @@ const TelegramBot: React.FC = () => {
             
             <div className="space-y-3">
               <h3 className="text-lg font-semibold text-center">📋 الأوامر المتاحة</h3>
-              <CommandButtons onCommand={(cmd) => {
-                setActiveTab("chat");
-                handleCommand(cmd);
-              }} />
+              <CommandButtons 
+                onCommand={(cmd) => {
+                  setActiveTab("chat");
+                  handleCommand(cmd);
+                }}
+                subscriptionTier={user?.subscriptionTier}
+                isTrialEnded={user ? !isInTrialPeriod(user.firstLoginDate) : false}
+              />
             </div>
             
             {user?.birthDate && user?.dialect && (

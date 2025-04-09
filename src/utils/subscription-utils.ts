@@ -1,3 +1,4 @@
+
 import { SubscriptionTier, HoroscopeType } from "@/types";
 
 export const SUBSCRIPTION_TIERS = [
@@ -19,7 +20,7 @@ export const SUBSCRIPTION_TIERS = [
     icon: "🌟",
     description: "100 questions/month, 1 topic, 7-day forecast",
     arabicDescription: "100 سؤال شهريًا، موضوع واحد، توقعات لمدة 7 أيام",
-    price: 7.99,
+    price: 7,
     questionsPerMonth: 100,
     characterLimit: null // No character limit for paid users
   },
@@ -30,7 +31,7 @@ export const SUBSCRIPTION_TIERS = [
     icon: "🔮",
     description: "150 questions/month, any topic, 7-day forecast",
     arabicDescription: "150 سؤال شهريًا، أي موضوع، توقعات لمدة 7 أيام",
-    price: 14.99,
+    price: 14,
     questionsPerMonth: 150,
     characterLimit: null
   },
@@ -41,7 +42,7 @@ export const SUBSCRIPTION_TIERS = [
     icon: "✨",
     description: "200 questions/month, any topic, 2-year forecast",
     arabicDescription: "200 سؤال شهريًا، أي موضوع، توقعات لمدة عامين",
-    price: 24.99,
+    price: 25,
     questionsPerMonth: 200,
     characterLimit: null
   }
