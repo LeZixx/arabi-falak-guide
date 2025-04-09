@@ -12,7 +12,7 @@ export type DialectInfo = {
   nameArabic: string;
 };
 
-export type SubscriptionTier = 0 | 1 | 2 | 3 | 4;
+export type SubscriptionTier = 0 | 1 | 2 | 3;
 
 export interface User {
   id: string;
@@ -21,6 +21,10 @@ export interface User {
   birthPlace?: string;
   dialect?: Dialect;
   subscriptionTier: SubscriptionTier;
+  firstLoginDate: string | null;
+  messageCountToday: number;
+  lastMessageDate: string | null;
+  totalMessagesThisMonth: number;
 }
 
 export type HoroscopeType = "daily" | "love" | "career" | "health";

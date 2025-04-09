@@ -1,9 +1,11 @@
+
 import React, { useState, useEffect, useRef } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
 
 import StarryBackground from "./StarryBackground";
 import MockTelegramHeader from "./MockTelegramHeader";
@@ -21,7 +23,9 @@ import {
   getUser, 
   createNewUser, 
   updateUserBirthDetails,
-  updateUserDialect 
+  updateUserDialect,
+  logUserMessage,
+  resetMessageCountForNewDay
 } from "@/services/userStorage";
 import { 
   generateHoroscope, 
@@ -35,7 +39,10 @@ import {
 import { 
   canAccessFeature, 
   canAccessHoroscopeType,
-  getUpgradeMessage 
+  getUpgradeMessage,
+  isInTrialPeriod,
+  hasReachedDailyLimit,
+  getForecastRange
 } from "@/utils/subscription-utils";
 import { Dialect, User, HoroscopeType } from "@/types";
 
@@ -60,6 +67,9 @@ const TelegramBot: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
   useEffect(() => {
+    // Reset message count if it's a new day
+    resetMessageCountForNewDay();
+    
     const existingUser = getUser();
     if (existingUser) {
       setUser(existingUser);
@@ -67,16 +77,27 @@ const TelegramBot: React.FC = () => {
       if (existingUser.birthDate && existingUser.dialect) {
         const dialectInfo = getDialectInfo(existingUser.dialect);
         const greeting = getDialectGreeting(existingUser.dialect);
+        const inTrial = isInTrialPeriod(existingUser.firstLoginDate);
+        const trialInfo = inTrial ? 
+          "\n\n✨ أنت حالياً في فترة التجربة المجانية (7 أيام) مع إمكانية وصول كاملة ✨" :
+          "";
         
-        addBotMessage(`مرحباً بعودتك! ${dialectInfo?.flag || "✨"}\n${greeting}`);
+        addBotMessage(`مرحباً بعودتك! ${dialectInfo?.flag || "✨"}\n${greeting}${trialInfo}`);
+        
+        // If trial ended today, show notification
+        if (!inTrial && existingUser.lastMessageDate !== new Date().toISOString().split('T')[0]) {
+          setTimeout(() => {
+            addBotMessage("❗ لقد انتهت فترة التجربة المجانية الخاصة بك. الآن لديك حد يومي من 3 أسئلة فقط. يمكنك الترقية للحصول على المزيد من الميزات.");
+          }, 1500);
+        }
       } else {
         // For existing user without complete profile
         addBotMessage(
           "مرحباً بك في النجم العربي 🌙✨\n" +
           "مرحبًا بك في عالم التنجيم الشخصي!\n\n" +
           "هذا التطبيق يقدم لك:\n" +
-          "• قراءات فلكية مخصصة 🔮\n" +
-          "• توقعات يومية دقيقة ✨\n" +
+          "• قراءات فلكية مخصصة لك شخصياً 🔮\n" +
+          "• توقعات يومية دقيقة مرتبطة ببرجك ✨\n" +
           "• دعم لعدة لهجات عربية 🗣️\n\n" +
           "اكتب /start للبدء برحلتك الفلكية!"
         );
@@ -95,6 +116,7 @@ const TelegramBot: React.FC = () => {
           "• توقعات يومية دقيقة مرتبطة ببرجك وولادتك ✨\n" +
           "• اختيار اللهجة العربية التي تشعر بها 🗣️\n" +
           "• إرشادات روحية مخصصة للحب والعمل والصحة 💫\n\n" +
+          "✨ استمتع بفترة تجربة مجانية كاملة لمدة 7 أيام! ✨\n\n" +
           "لتبدأ رحلتك الفلكية الشخصية، نحتاج إلى معلومات ميلادك الدقيقة.\n" +
           "اكتب /start الآن لإنشاء مرشدك الفلكي الخاص! 🌙✨"
         );
@@ -121,6 +143,16 @@ const TelegramBot: React.FC = () => {
   };
   
   const addUserMessage = (text: string) => {
+    // Log user message for counting
+    if (user) {
+      logUserMessage();
+      // Update the local state to reflect the updated counts
+      const updatedUser = getUser();
+      if (updatedUser) {
+        setUser(updatedUser);
+      }
+    }
+    
     setMessages(prev => [
       ...prev,
       {
@@ -133,6 +165,25 @@ const TelegramBot: React.FC = () => {
   };
   
   const handleUserMessage = (message: string) => {
+    // Check if user can send more messages
+    if (user && !isInTrialPeriod(user.firstLoginDate) && 
+        user.subscriptionTier === 0 && hasReachedDailyLimit(user.messageCountToday)) {
+      showSubscriptions(true);
+      addBotMessage(getUpgradeMessage(user.subscriptionTier, "questions", true, true));
+      return;
+    }
+    
+    // Check monthly limit for paid tiers
+    if (user && user.subscriptionTier > 0) {
+      const tierInfo = SUBSCRIPTION_TIERS.find(t => t.id === user.subscriptionTier);
+      if (tierInfo && tierInfo.questionsPerMonth && 
+          user.totalMessagesThisMonth >= tierInfo.questionsPerMonth) {
+        addBotMessage(`لقد وصلت إلى الحد الشهري (${tierInfo.questionsPerMonth} سؤال). يرجى الانتظار حتى بداية الشهر القادم أو ترقية باقتك.`);
+        showSubscriptions();
+        return;
+      }
+    }
+    
     addUserMessage(message);
     
     if (message.startsWith("/")) {
@@ -141,25 +192,16 @@ const TelegramBot: React.FC = () => {
       if (!user?.birthDate || !user?.dialect) {
         addBotMessage("لم تكمل إعداد ملفك الشخصي بعد. الرجاء كتابة /start للبدء.");
       } else {
-        if (canAccessFeature(user.subscriptionTier, "questions")) {
-          setTimeout(() => {
-            const dialectInfo = getDialectInfo(user.dialect!);
-            addBotMessage(`${dialectInfo?.flag || "✨"} إجابة على سؤالك:\n\n${message.length % 2 === 0 ? "النجوم تشير إلى أن هذا وقت مناسب للمضي قدماً. القمر في بيتك الخامس يدعم القرارات الجديدة. ✨🌙" : "الكواكب تنصحك بالتروي قليلاً. زحل في وضع معاكس يشير إلى ضرورة التأني والتفكير مرة أخرى. 🪐✨"}`);
-          }, 1000);
-        } else {
-          addBotMessage(getUpgradeMessage(user.subscriptionTier, "questions"));
-          setDialogContent(
-            <SubscriptionCard 
-              currentTier={user.subscriptionTier} 
-              onSubscribe={(tier) => {
-                setUser(prev => prev ? { ...prev, subscriptionTier: tier } : null);
-                setIsDialogOpen(false);
-                addBotMessage(`✨ تم ترقية اشتراكك بنجاح! شكراً لدعمك. ✨`);
-              }} 
-            />
-          );
-          setIsDialogOpen(true);
-        }
+        // All users can send normal messages within their limits
+        setTimeout(() => {
+          const dialectInfo = getDialectInfo(user.dialect!);
+          const inTrial = isInTrialPeriod(user.firstLoginDate);
+          const forecastRange = user.subscriptionTier === 3 ? "عامين" : "7 أيام";
+          
+          addBotMessage(`${dialectInfo?.flag || "✨"} إجابة على سؤالك:\n\n${message.length % 2 === 0 ? 
+            `النجوم تشير إلى أن هذا وقت مناسب للمضي قدماً. القمر في بيتك الخامس يدعم القرارات الجديدة. توقعات لـ ${forecastRange} القادمة تبدو إيجابية! ✨🌙` : 
+            `الكواكب تنصحك بالتروي قليلاً. زحل في وضع معاكس يشير إلى ضرورة التأني والتفكير مرة أخرى. خلال الـ ${forecastRange} القادمة، قد تواجه بعض التحديات. 🪐✨`}`);
+        }, 1000);
       }
     }
   };
@@ -220,7 +262,12 @@ const TelegramBot: React.FC = () => {
                 setIsDialogOpen(false);
                 
                 const dialectInfo = getDialectInfo(dialect);
-                addBotMessage(`✨ تم إكمال الإعداد بنجاح! ${dialectInfo?.flag || ""}\n\n${getDialectGreeting(dialect)}`);
+                const inTrial = user ? isInTrialPeriod(user.firstLoginDate) : true;
+                const trialInfo = inTrial ? 
+                  "\n\n✨ أنت حالياً في فترة التجربة المجانية (7 أيام) مع إمكانية وصول كاملة ✨" : 
+                  "";
+                  
+                addBotMessage(`✨ تم إكمال الإعداد بنجاح! ${dialectInfo?.flag || ""}\n\n${getDialectGreeting(dialect)}${trialInfo}`);
               }}
               selectedDialect={user?.dialect}
             />
@@ -238,13 +285,12 @@ const TelegramBot: React.FC = () => {
     }
     
     const dialectInfo = getDialectInfo(user.dialect);
-    const tierInfo = {
-      0: "مجاني",
-      1: "راصد النجوم",
-      2: "ابن القمر",
-      3: "سماوي",
-      4: "المرشد الكوني"
-    }[user.subscriptionTier];
+    const inTrial = isInTrialPeriod(user.firstLoginDate);
+    const trialEndDate = user.firstLoginDate ? 
+      new Date(new Date(user.firstLoginDate).getTime() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString("ar") :
+      "";
+    
+    const tierInfo = SUBSCRIPTION_TIERS.find(t => t.id === user.subscriptionTier)!;
     
     const zodiacSign = getZodiacSign(user.birthDate);
     const zodiacEmoji = getZodiacEmoji(zodiacSign);
@@ -256,7 +302,10 @@ const TelegramBot: React.FC = () => {
       `⏰ وقت الميلاد: ${user.birthTime}\n` +
       `📍 مكان الميلاد: ${user.birthPlace}\n` +
       `♈ البرج: ${zodiacSign} ${zodiacEmoji}\n` +
-      `⭐ نوع الاشتراك: ${tierInfo}`
+      `⭐ نوع الاشتراك: ${tierInfo.arabicName} ${tierInfo.icon}\n` +
+      (inTrial ? `📆 تنتهي فترة التجربة المجانية في: ${trialEndDate}\n` : "") +
+      (user.subscriptionTier === 0 && !inTrial ? `📝 الأسئلة المتبقية اليوم: ${3 - user.messageCountToday}/3\n` : "") +
+      (user.subscriptionTier > 0 && tierInfo.questionsPerMonth ? `📝 الأسئلة المتبقية هذا الشهر: ${tierInfo.questionsPerMonth - user.totalMessagesThisMonth}/${tierInfo.questionsPerMonth}\n` : "")
     );
   };
   
@@ -277,8 +326,10 @@ const TelegramBot: React.FC = () => {
     setIsDialogOpen(true);
   };
   
-  const showSubscriptions = () => {
+  const showSubscriptions = (isLimitReached = false) => {
     if (!user) return;
+    
+    const isTrialEnded = !isInTrialPeriod(user.firstLoginDate);
     
     setDialogContent(
       <SubscriptionCard 
@@ -287,7 +338,8 @@ const TelegramBot: React.FC = () => {
           setUser(prev => prev ? { ...prev, subscriptionTier: tier } : null);
           setIsDialogOpen(false);
           addBotMessage(`✨ تم تحديث اشتراكك بنجاح! شكراً لدعمك. ✨`);
-        }} 
+        }}
+        isTrialEnded={isTrialEnded}
       />
     );
     setIsDialogOpen(true);
@@ -299,10 +351,13 @@ const TelegramBot: React.FC = () => {
       return;
     }
     
-    if (!canAccessHoroscopeType(user.subscriptionTier, type)) {
+    const inTrial = isInTrialPeriod(user.firstLoginDate);
+    
+    if (!inTrial && !canAccessHoroscopeType(user.subscriptionTier, type, user.firstLoginDate)) {
       addBotMessage(getUpgradeMessage(
         user.subscriptionTier,
-        type === "daily" ? "daily" : "all_topics"
+        type === "daily" ? "daily" : "all_topics",
+        true
       ));
       setDialogContent(
         <SubscriptionCard 
@@ -313,7 +368,8 @@ const TelegramBot: React.FC = () => {
             addBotMessage(`✨ تم ترقية اشتراكك بنجاح! شكراً لدعمك. ✨`);
             
             setTimeout(() => showHoroscope(type), 1000);
-          }} 
+          }}
+          isTrialEnded={true}
         />
       );
       setIsDialogOpen(true);
@@ -347,8 +403,11 @@ const TelegramBot: React.FC = () => {
       health: "🌿"
     };
     
+    const forecastRange = getForecastRange(user.subscriptionTier);
+    const forecastInfo = `(توقعات لـ ${forecastRange})`;
+    
     const dialectInfo = getDialectInfo(user.dialect);
-    addBotMessage(`${typeEmojis[type]} ${horoscope.title} ${dialectInfo?.flag || ""}\n\n${horoscope.content}\n\n🔮 الرقم المحظوظ: ${horoscope.luckyNumber}\n🌟 النجم المحظوظ: ${horoscope.luckyStar}\n🎨 اللون المحظوظ: ${horoscope.luckyColor}`);
+    addBotMessage(`${typeEmojis[type]} ${horoscope.title} ${dialectInfo?.flag || ""} ${forecastInfo}\n\n${horoscope.content}\n\n🔮 الرقم المحظوظ: ${horoscope.luckyNumber}\n🌟 النجم المحظوظ: ${horoscope.luckyStar}\n🎨 اللون المحظوظ: ${horoscope.luckyColor}`);
   };
   
   const askQuestion = () => {
@@ -362,12 +421,7 @@ const TelegramBot: React.FC = () => {
         user={user}
         onSubmit={(question) => {
           setIsDialogOpen(false);
-          addUserMessage(question);
-          
-          setTimeout(() => {
-            const dialectInfo = getDialectInfo(user.dialect!);
-            addBotMessage(`${dialectInfo?.flag || "✨"} إجابة سؤالك:\n\n${question.length % 2 === 0 ? "القمر في برجك يشير إلى فترة من التغيير الإيجابي. هذا وقت مناسب للمبادرة والتقدم في أهدافك. ✨🌙" : "حركة المريخ حالياً تنصحك بالحذر في الخطوات القادمة. تأكد من دراسة جميع الخيارات قبل اتخاذ القرار. 🔮✨"}`);
-          }, 1000);
+          handleUserMessage(question);
         }}
         onUpgrade={() => {
           setIsDialogOpen(false);
@@ -376,6 +430,44 @@ const TelegramBot: React.FC = () => {
       />
     );
     setIsDialogOpen(true);
+  };
+  
+  // Get subscription status for UI indicators
+  const getSubscriptionStatus = () => {
+    if (!user) return null;
+    
+    const inTrial = isInTrialPeriod(user.firstLoginDate);
+    
+    if (inTrial) {
+      const trialEndDate = user.firstLoginDate ? 
+        new Date(new Date(user.firstLoginDate).getTime() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString("ar") :
+        "";
+      
+      return (
+        <Badge variant="outline" className="mx-auto">
+          تجربة مجانية - تنتهي في {trialEndDate}
+        </Badge>
+      );
+    }
+    
+    if (user.subscriptionTier === 0) {
+      return (
+        <Badge variant="outline" className="mx-auto">
+          {3 - user.messageCountToday}/3 أسئلة متبقية اليوم
+        </Badge>
+      );
+    }
+    
+    const tierInfo = SUBSCRIPTION_TIERS.find(t => t.id === user.subscriptionTier);
+    if (tierInfo && tierInfo.questionsPerMonth) {
+      return (
+        <Badge variant="outline" className="mx-auto">
+          {tierInfo.questionsPerMonth - user.totalMessagesThisMonth}/{tierInfo.questionsPerMonth} سؤال متبقي هذا الشهر
+        </Badge>
+      );
+    }
+    
+    return null;
   };
   
   return (
@@ -394,6 +486,12 @@ const TelegramBot: React.FC = () => {
           <div className="flex justify-center mb-4">
             <AstrologerAvatar size="lg" />
           </div>
+          
+          {getSubscriptionStatus() && (
+            <div className="mb-4 flex justify-center">
+              {getSubscriptionStatus()}
+            </div>
+          )}
           
           <ScrollArea className="flex-1 px-2">
             <div className="space-y-4">
@@ -422,6 +520,12 @@ const TelegramBot: React.FC = () => {
               <p className="text-sm text-muted-foreground">
                 المنجم العربي الشخصي الخاص بك
               </p>
+              
+              {getSubscriptionStatus() && (
+                <div className="mt-2">
+                  {getSubscriptionStatus()}
+                </div>
+              )}
             </div>
             
             <Separator />

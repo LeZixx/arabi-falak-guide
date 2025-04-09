@@ -6,15 +6,18 @@ import { SUBSCRIPTION_TIERS } from "@/utils/subscription-utils";
 import { Separator } from "@/components/ui/separator";
 import { updateSubscriptionTier } from "@/services/userStorage";
 import { SubscriptionTier } from "@/types";
+import { Badge } from "@/components/ui/badge";
 
 interface SubscriptionCardProps {
   currentTier: SubscriptionTier;
   onSubscribe: (tier: SubscriptionTier) => void;
+  isTrialEnded?: boolean;
 }
 
 const SubscriptionCard: React.FC<SubscriptionCardProps> = ({
   currentTier,
-  onSubscribe
+  onSubscribe,
+  isTrialEnded = false
 }) => {
   const handleSubscribe = (tier: SubscriptionTier) => {
     // In a real app, this would trigger Stripe or payment processing
@@ -23,6 +26,11 @@ const SubscriptionCard: React.FC<SubscriptionCardProps> = ({
     onSubscribe(tier);
   };
   
+  // Filter out the free tier if trial has ended
+  const tiersToShow = SUBSCRIPTION_TIERS.filter(tier => 
+    !isTrialEnded || tier.id !== 0
+  );
+  
   return (
     <div className="w-full max-w-md mx-auto">
       <h3 className="text-xl font-semibold text-center mb-4">
@@ -30,7 +38,7 @@ const SubscriptionCard: React.FC<SubscriptionCardProps> = ({
       </h3>
       
       <div className="space-y-3">
-        {SUBSCRIPTION_TIERS.map((tier) => (
+        {tiersToShow.map((tier) => (
           <Card 
             key={tier.id}
             className={`border ${currentTier === tier.id ? "border-accent" : "border-muted"} transition-all hover:border-accent/50`}
@@ -40,6 +48,9 @@ const SubscriptionCard: React.FC<SubscriptionCardProps> = ({
                 <CardTitle className="text-lg flex items-center gap-2">
                   <span>{tier.icon}</span>
                   <span className="text-right">{tier.arabicName}</span>
+                  {tier.id === 0 && !isTrialEnded && (
+                    <Badge variant="outline" className="mr-2">7 أيام</Badge>
+                  )}
                 </CardTitle>
                 <span className="text-xl font-bold">
                   {tier.price === 0 ? "مجاني" : `$${tier.price}`}
@@ -51,6 +62,11 @@ const SubscriptionCard: React.FC<SubscriptionCardProps> = ({
             
             <CardContent className="pt-3 pb-2">
               <p className="text-right text-muted-foreground">{tier.arabicDescription}</p>
+              {tier.questionsPerMonth && (
+                <p className="text-right text-sm mt-1">
+                  {tier.id === 3 ? "✓ تنبؤات لمدة عامين" : "✓ تنبؤات لمدة 7 أيام"}
+                </p>
+              )}
             </CardContent>
             
             <CardFooter>
