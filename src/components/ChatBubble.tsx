@@ -29,7 +29,7 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({
       >
         <p className="whitespace-pre-wrap text-right">{message}</p>
         {timestamp && (
-          <div className="text-left mt-1">
+          <div className="text-right mt-1">
             <span className="text-xs opacity-70">{timestamp}</span>
           </div>
         )}
