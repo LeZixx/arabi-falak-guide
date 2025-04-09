@@ -1,4 +1,3 @@
-
 import { SubscriptionTier, HoroscopeType } from "@/types";
 
 export const SUBSCRIPTION_TIERS = [
@@ -10,7 +9,8 @@ export const SUBSCRIPTION_TIERS = [
     description: "7-day trial, then 3 questions per day",
     arabicDescription: "تجربة مجانية لمدة 7 أيام، ثم 3 أسئلة يوميًا",
     price: 0,
-    questionsPerMonth: null // unlimited during trial
+    questionsPerMonth: null, // unlimited during trial
+    characterLimit: 500 // Character limit for free users
   },
   {
     id: 1,
@@ -19,8 +19,9 @@ export const SUBSCRIPTION_TIERS = [
     icon: "🌟",
     description: "100 questions/month, 1 topic, 7-day forecast",
     arabicDescription: "100 سؤال شهريًا، موضوع واحد، توقعات لمدة 7 أيام",
-    price: 4.99,
-    questionsPerMonth: 100
+    price: 7.99,
+    questionsPerMonth: 100,
+    characterLimit: null // No character limit for paid users
   },
   {
     id: 2,
@@ -29,8 +30,9 @@ export const SUBSCRIPTION_TIERS = [
     icon: "🔮",
     description: "150 questions/month, any topic, 7-day forecast",
     arabicDescription: "150 سؤال شهريًا، أي موضوع، توقعات لمدة 7 أيام",
-    price: 9.99,
-    questionsPerMonth: 150
+    price: 14.99,
+    questionsPerMonth: 150,
+    characterLimit: null
   },
   {
     id: 3,
@@ -39,8 +41,9 @@ export const SUBSCRIPTION_TIERS = [
     icon: "✨",
     description: "200 questions/month, any topic, 2-year forecast",
     arabicDescription: "200 سؤال شهريًا، أي موضوع، توقعات لمدة عامين",
-    price: 14.99,
-    questionsPerMonth: 200
+    price: 24.99,
+    questionsPerMonth: 200,
+    characterLimit: null
   }
 ];
 
@@ -67,12 +70,10 @@ export const canAccessFeature = (
   firstLoginDate: string | null,
   questionsToday: number
 ): boolean => {
-  // During trial, everything is accessible
   if (isInTrialPeriod(firstLoginDate)) {
     return true;
   }
   
-  // Free tier with daily limit
   if (tier === 0) {
     if (feature === "questions" && hasReachedDailyLimit(questionsToday)) {
       return false;
@@ -80,16 +81,15 @@ export const canAccessFeature = (
     return true;
   }
   
-  // Paid tiers
   switch (feature) {
     case "daily":
-      return true; // All paid tiers have access
+      return true;
     case "topic":
-      return tier >= 1; // All paid tiers have at least one topic
+      return tier >= 1;
     case "all_topics":
-      return tier >= 2; // Core and Pro have all topics
+      return tier >= 2;
     case "questions":
-      return true; // All paid tiers have questions (with monthly limits)
+      return true;
     default:
       return false;
   }
@@ -100,12 +100,10 @@ export const canAccessHoroscopeType = (
   type: HoroscopeType,
   firstLoginDate: string | null
 ): boolean => {
-  // During trial, everything is accessible
   if (isInTrialPeriod(firstLoginDate)) {
     return true;
   }
   
-  // Free tier can access daily only
   if (tier === 0) {
     return type === "daily";
   }
@@ -114,10 +112,8 @@ export const canAccessHoroscopeType = (
     return true;
   } else if (type === "love" || type === "career" || type === "health") {
     if (tier === 1) {
-      // Starter tier can only access one topic (love)
       return type === "love";
     }
-    // Core and Pro can access all topics
     return tier >= 2;
   }
   return false;
@@ -125,9 +121,9 @@ export const canAccessHoroscopeType = (
 
 export const getForecastRange = (tier: SubscriptionTier): string => {
   if (tier === 3) {
-    return "عامين"; // 2 years for Pro
+    return "عامين";
   }
-  return "7 أيام"; // 7 days for others
+  return "7 أيام";
 };
 
 export const getUpgradeMessage = (
@@ -153,4 +149,13 @@ export const getUpgradeMessage = (
   return `✨ للوصول إلى هذه الميزة، تحتاج إلى الترقية إلى خطة ${tierInfo.arabicName} ${tierInfo.icon}\n` +
          `السعر: $${tierInfo.price}/شهر\n` +
          `المميزات: ${tierInfo.arabicDescription}`;
+};
+
+export const getCharacterLimit = (tier: SubscriptionTier, isInTrial: boolean): number | null => {
+  if (isInTrial) {
+    return null;
+  }
+  
+  const tierInfo = SUBSCRIPTION_TIERS.find(t => t.id === tier);
+  return tierInfo?.characterLimit || null;
 };

@@ -1,9 +1,9 @@
 
 import { Dialect, HoroscopeType, HoroscopeResponse } from "@/types";
 import { getDialectExample } from "./dialect-utils";
+import { calculateNatalChart, generateHoroscopeFromEphemeris } from "./swiss-ephemeris-utils";
 
 // This would be replaced with actual astrology calculations and API calls
-// For now we'll use dummy data for demonstration
 export const generateHoroscope = (
   birthDate: string,
   birthTime: string,
@@ -11,11 +11,21 @@ export const generateHoroscope = (
   type: HoroscopeType,
   dialect: Dialect
 ): HoroscopeResponse => {
-  // In a real implementation, we would calculate actual horoscope
-  // based on birth details and make API calls to GPT
+  // Calculate natal chart using Swiss Ephemeris (placeholder)
+  const chart = calculateNatalChart(birthDate, birthTime, birthPlace);
   
-  // For demo purposes, we're returning static examples
+  // In a real implementation, we would use this chart data
+  // For demo purposes, we're still using static examples
+  
   const exampleResponse = getDialectExample(dialect);
+  
+  // More detailed and comprehensive responses now that we've removed the character limit for paid users
+  const detailedResponses = {
+    daily: "تشير الكواكب اليوم إلى فترة مميزة من النمو الشخصي. المشتري في وضع إيجابي يفتح أمامك أبواباً جديدة للتطور والتعلم. استفد من هذه الطاقة الإيجابية لتحقيق أهدافك. قد تلتقي بشخص له تأثير إيجابي على مستقبلك المهني. القمر في برجك يجعلك أكثر حساسية وإدراكاً للتفاصيل الصغيرة في محيطك. استمع لحدسك ولا تتردد في اتخاذ قرارات جريئة. الوقت مناسب للمبادرة والتحرك نحو أهدافك بثقة وإيجابية.",
+    love: "تؤثر الزهرة بشكل إيجابي على حياتك العاطفية هذه الفترة، مما يعزز جاذبيتك الشخصية ويجعلك أكثر انفتاحاً على التجارب الجديدة. إذا كنت في علاقة، ستشعر برغبة أكبر في التعبير عن مشاعرك وتعميق الروابط مع شريك حياتك. الوقت مناسب للمحادثات الصادقة التي تبني الثقة وتعزز التفاهم. إذا كنت أعزب، فإن هذه فترة مثالية للتعرف على أشخاص جدد، حيث تكون الطاقة الكونية داعمة للقاءات ذات معنى. استمع لقلبك واتبع حدسك في اختياراتك العاطفية.",
+    career: "المريخ في وضع قوي في خريطتك الفلكية يمنحك دفعة من الطاقة والحماس في مجال العمل. هناك فرصة لإثبات مهاراتك القيادية وتحقيق إنجازات ملموسة. الوقت مناسب للمبادرة بمشاريع جديدة أو طلب ترقية. زحل يدعم جهودك على المدى البعيد، مما يعني أن العمل الجاد الذي تقوم به الآن سيؤتي ثماره في المستقبل. لا تتردد في التعبير عن أفكارك المبتكرة، فالظروف الفلكية تدعم الإبداع والابتكار في بيئة العمل. توقع تطورات إيجابية في مسارك المهني إذا حافظت على التركيز والالتزام.",
+    health: "عطارد والشمس في تناغم يعززان صحتك النفسية والجسدية. هذه فترة مثالية للاهتمام بالتوازن بين العقل والجسد. مارس تقنيات الاسترخاء والتأمل للحفاظ على هدوئك النفسي. النظام الغذائي المتوازن سيكون له تأثير إيجابي ملحوظ على طاقتك وحيويتك. انتبه بشكل خاص للراحة الكافية، فالقمر في وضع يؤثر على أنماط نومك. تجنب الإجهاد المفرط واستمع لإشارات جسدك. الممارسة المنتظمة للرياضة ستساعد في تصريف الطاقة الزائدة وتعزيز المناعة. هذه فترة جيدة للبدء في عادات صحية جديدة ستستمر معك على المدى الطويل."
+  };
   
   const titles = {
     daily: "توقعات اليوم",
@@ -29,9 +39,10 @@ export const generateHoroscope = (
   const luckyStars = ["المشتري", "الزهرة", "الشمس", "عطارد", "القمر"];
   const luckyColors = ["الأزرق", "الأخضر", "الذهبي", "الفضي", "الأرجواني"];
   
+  // Use more detailed content for responses
   return {
     title: titles[type],
-    content: exampleResponse,
+    content: detailedResponses[type] || exampleResponse,
     luckyNumber: luckyNumbers[Math.floor(Math.random() * luckyNumbers.length)],
     luckyStar: luckyStars[Math.floor(Math.random() * luckyStars.length)],
     luckyColor: luckyColors[Math.floor(Math.random() * luckyColors.length)]

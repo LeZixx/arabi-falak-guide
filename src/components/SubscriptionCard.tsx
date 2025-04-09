@@ -34,7 +34,7 @@ const SubscriptionCard: React.FC<SubscriptionCardProps> = ({
   return (
     <div className="w-full max-w-md mx-auto">
       <h3 className="text-xl font-semibold text-center mb-4">
-        ✨ باقات الاشتراك ✨
+        باقات الاشتراك ✨
       </h3>
       
       <div className="space-y-3">
@@ -65,6 +65,11 @@ const SubscriptionCard: React.FC<SubscriptionCardProps> = ({
               {tier.questionsPerMonth && (
                 <p className="text-right text-sm mt-1">
                   {tier.id === 3 ? "✓ تنبؤات لمدة عامين" : "✓ تنبؤات لمدة 7 أيام"}
+                </p>
+              )}
+              {tier.id > 0 && (
+                <p className="text-right text-sm mt-1">
+                  ✓ بدون حدود للأحرف في الرسائل
                 </p>
               )}
             </CardContent>
