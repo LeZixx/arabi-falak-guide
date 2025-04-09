@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -42,7 +41,8 @@ import {
   getUpgradeMessage,
   isInTrialPeriod,
   hasReachedDailyLimit,
-  getForecastRange
+  getForecastRange,
+  SUBSCRIPTION_TIERS
 } from "@/utils/subscription-utils";
 import { Dialect, User, HoroscopeType } from "@/types";
 
@@ -67,7 +67,6 @@ const TelegramBot: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
   useEffect(() => {
-    // Reset message count if it's a new day
     resetMessageCountForNewDay();
     
     const existingUser = getUser();
@@ -84,14 +83,12 @@ const TelegramBot: React.FC = () => {
         
         addBotMessage(`مرحباً بعودتك! ${dialectInfo?.flag || "✨"}\n${greeting}${trialInfo}`);
         
-        // If trial ended today, show notification
         if (!inTrial && existingUser.lastMessageDate !== new Date().toISOString().split('T')[0]) {
           setTimeout(() => {
             addBotMessage("❗ لقد انتهت فترة التجربة المجانية الخاصة بك. الآن لديك حد يومي من 3 أسئلة فقط. يمكنك الترقية للحصول على المزيد من الميزات.");
           }, 1500);
         }
       } else {
-        // For existing user without complete profile
         addBotMessage(
           "مرحباً بك في النجم العربي 🌙✨\n" +
           "مرحبًا بك في عالم التنجيم الشخصي!\n\n" +
@@ -106,7 +103,6 @@ const TelegramBot: React.FC = () => {
       const newUser = createNewUser();
       setUser(newUser);
       
-      // Add initial welcome message - critical for first-time users
       setTimeout(() => {
         addBotMessage(
           "مرحباً بك في النجم العربي 🌙✨\n" +
@@ -143,10 +139,8 @@ const TelegramBot: React.FC = () => {
   };
   
   const addUserMessage = (text: string) => {
-    // Log user message for counting
     if (user) {
       logUserMessage();
-      // Update the local state to reflect the updated counts
       const updatedUser = getUser();
       if (updatedUser) {
         setUser(updatedUser);
@@ -165,7 +159,6 @@ const TelegramBot: React.FC = () => {
   };
   
   const handleUserMessage = (message: string) => {
-    // Check if user can send more messages
     if (user && !isInTrialPeriod(user.firstLoginDate) && 
         user.subscriptionTier === 0 && hasReachedDailyLimit(user.messageCountToday)) {
       showSubscriptions(true);
@@ -173,7 +166,6 @@ const TelegramBot: React.FC = () => {
       return;
     }
     
-    // Check monthly limit for paid tiers
     if (user && user.subscriptionTier > 0) {
       const tierInfo = SUBSCRIPTION_TIERS.find(t => t.id === user.subscriptionTier);
       if (tierInfo && tierInfo.questionsPerMonth && 
@@ -192,7 +184,6 @@ const TelegramBot: React.FC = () => {
       if (!user?.birthDate || !user?.dialect) {
         addBotMessage("لم تكمل إعداد ملفك الشخصي بعد. الرجاء كتابة /start للبدء.");
       } else {
-        // All users can send normal messages within their limits
         setTimeout(() => {
           const dialectInfo = getDialectInfo(user.dialect!);
           const inTrial = isInTrialPeriod(user.firstLoginDate);
@@ -262,7 +253,7 @@ const TelegramBot: React.FC = () => {
                 setIsDialogOpen(false);
                 
                 const dialectInfo = getDialectInfo(dialect);
-                const inTrial = user ? isInTrialPeriod(user.firstLoginDate) : true;
+                const inTrial = isInTrialPeriod(user.firstLoginDate);
                 const trialInfo = inTrial ? 
                   "\n\n✨ أنت حالياً في فترة التجربة المجانية (7 أيام) مع إمكانية وصول كاملة ✨" : 
                   "";
@@ -432,7 +423,6 @@ const TelegramBot: React.FC = () => {
     setIsDialogOpen(true);
   };
   
-  // Get subscription status for UI indicators
   const getSubscriptionStatus = () => {
     if (!user) return null;
     
@@ -553,7 +543,7 @@ const TelegramBot: React.FC = () => {
                   
                   <Button 
                     className="w-full"
-                    onClick={showSubscriptions}
+                    onClick={() => showSubscriptions()}
                     variant="outline"
                   >
                     ⭐ ترقية اشتراكك
