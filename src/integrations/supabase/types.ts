@@ -9,7 +9,81 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      astrology_charts: {
+        Row: {
+          birth_date: string
+          birth_place: string
+          birth_time: string
+          chart_data: Json | null
+          created_at: string | null
+          id: string
+          latitude: number | null
+          longitude: number | null
+          user_id: string
+        }
+        Insert: {
+          birth_date: string
+          birth_place: string
+          birth_time: string
+          chart_data?: Json | null
+          created_at?: string | null
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          user_id: string
+        }
+        Update: {
+          birth_date?: string
+          birth_place?: string
+          birth_time?: string
+          chart_data?: Json | null
+          created_at?: string | null
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      horoscope_predictions: {
+        Row: {
+          chart_id: string
+          content: string
+          created_at: string | null
+          id: string
+          lucky_color: string | null
+          lucky_number: number | null
+          lucky_star: string | null
+          type: string
+          user_id: string
+          valid_until: string
+        }
+        Insert: {
+          chart_id: string
+          content: string
+          created_at?: string | null
+          id?: string
+          lucky_color?: string | null
+          lucky_number?: number | null
+          lucky_star?: string | null
+          type: string
+          user_id: string
+          valid_until: string
+        }
+        Update: {
+          chart_id?: string
+          content?: string
+          created_at?: string | null
+          id?: string
+          lucky_color?: string | null
+          lucky_number?: number | null
+          lucky_star?: string | null
+          type?: string
+          user_id?: string
+          valid_until?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

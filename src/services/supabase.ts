@@ -1,3 +1,4 @@
+
 import { createClient } from '@supabase/supabase-js';
 import { toast } from 'sonner';
 import { supabase as supabaseClient } from '@/integrations/supabase/client';
@@ -9,7 +10,10 @@ export const supabase = supabaseClient;
 export const checkSupabaseConnection = async (): Promise<boolean> => {
   try {
     // Try to get a simple response from Supabase
-    const { data, error } = await supabase.from('astrology_charts').select('count').limit(1);
+    const { data, error } = await supabase
+      .from('astrology_charts')
+      .select('count')
+      .limit(1) as any;
     
     if (error) {
       if (error.code === '42P01') {
@@ -113,15 +117,14 @@ export const saveUserChart = async (
       chart_data: chartData,
       created_at: new Date().toISOString()
     })
-    .select()
-    .single();
+    .select() as any;
 
   if (error && error.code === '42P01') {
     // Table doesn't exist
     await checkSupabaseConnection();
   }
 
-  return { data, error };
+  return { data: data?.[0] || null, error };
 };
 
 export const getUserChart = async (userId: string): Promise<{ data: AstrologyChart | null; error: any }> => {
@@ -131,7 +134,7 @@ export const getUserChart = async (userId: string): Promise<{ data: AstrologyCha
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .limit(1)
-    .single();
+    .single() as any;
 
   if (error && error.code === '42P01') {
     // Table doesn't exist
@@ -164,15 +167,14 @@ export const saveHoroscopePrediction = async (
       created_at: new Date().toISOString(),
       valid_until: validUntil
     })
-    .select()
-    .single();
+    .select() as any;
 
   if (error && error.code === '42P01') {
     // Table doesn't exist
     await checkSupabaseConnection();
   }
 
-  return { data, error };
+  return { data: data?.[0] || null, error };
 };
 
 export const getLatestHoroscope = async (
@@ -187,7 +189,7 @@ export const getLatestHoroscope = async (
     .gte('valid_until', new Date().toISOString())
     .order('created_at', { ascending: false })
     .limit(1)
-    .single();
+    .single() as any;
 
   if (error && error.code === '42P01') {
     // Table doesn't exist
