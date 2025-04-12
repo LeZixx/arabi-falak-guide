@@ -16,8 +16,7 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({
   return (
     <div className={cn(
       "flex w-full max-w-[85%]", 
-      // In RTL, user messages should be on the left, bot messages on the right
-      isUser ? "mr-auto justify-start" : "ml-auto justify-end"
+      isUser ? "ml-auto justify-end" : "mr-auto justify-start"
     )}>
       <div
         className={cn(

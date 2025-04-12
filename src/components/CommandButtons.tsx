@@ -15,23 +15,23 @@ const CommandButtons: React.FC<CommandButtonsProps> = ({
 }) => {
   // Basic commands available to all users
   const baseCommands = [
-    { name: "/start", label: "🔄 /start", description: "بدء من جديد" },
-    { name: "/mydata", label: "📋 /mydata", description: "بياناتي" },
-    { name: "/change_dialect", label: "🗣️ /change_dialect", description: "تغيير اللهجة" },
-    { name: "/subscribe", label: "⭐ /subscribe", description: "الاشتراكات" },
-    { name: "/horoscope", label: "🔮 /horoscope", description: "قراءة يومية" }
+    { name: "/start", label: "/start 🔄", description: "بدء من جديد" },
+    { name: "/mydata", label: "/mydata 📋", description: "بياناتي" },
+    { name: "/change_dialect", label: "/change_dialect 🗣️", description: "تغيير اللهجة" },
+    { name: "/subscribe", label: "/subscribe ⭐", description: "الاشتراكات" },
+    { name: "/horoscope", label: "/horoscope 🔮", description: "قراءة يومية" }
   ];
   
   // Topic-specific commands - availability depends on subscription
   const topicCommands = [
-    { name: "/love", label: "❤️ /love", description: "الحب", minTier: isTrialEnded ? 1 : 0 },
-    { name: "/career", label: "💼 /career", description: "العمل", minTier: isTrialEnded ? 2 : 0 },
-    { name: "/health", label: "🌿 /health", description: "الصحة", minTier: isTrialEnded ? 2 : 0 }
+    { name: "/love", label: "/love ❤️", description: "الحب", minTier: isTrialEnded ? 1 : 0 },
+    { name: "/career", label: "/career 💼", description: "العمل", minTier: isTrialEnded ? 2 : 0 },
+    { name: "/health", label: "/health 🌿", description: "الصحة", minTier: isTrialEnded ? 2 : 0 }
   ];
   
   // Additional commands
   const otherCommands = [
-    { name: "/ask", label: "❓ /ask", description: "سؤال", minTier: 0 }
+    { name: "/ask", label: "/ask ❓", description: "سؤال", minTier: 0 }
   ];
   
   // Filter commands based on subscription tier
@@ -60,7 +60,7 @@ const CommandButtons: React.FC<CommandButtonsProps> = ({
       
       {isTrialEnded && subscriptionTier < 2 && (
         <p className="text-xs text-center text-muted-foreground mt-2">
-          ✨ قم بترقية اشتراكك للوصول إلى جميع الموضوعات
+          قم بترقية اشتراكك للوصول إلى جميع الموضوعات ✨
         </p>
       )}
     </div>
