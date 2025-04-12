@@ -105,7 +105,9 @@ export const saveUserChart = async (
   birthDate: string,
   birthTime: string,
   birthPlace: string,
-  chartData: any
+  chartData: any,
+  latitude?: number | null,
+  longitude?: number | null
 ): Promise<{ data: AstrologyChart | null; error: any }> => {
   const { data, error } = await supabase
     .from('astrology_charts')
@@ -114,6 +116,8 @@ export const saveUserChart = async (
       birth_date: birthDate,
       birth_time: birthTime,
       birth_place: birthPlace,
+      latitude: latitude || null,
+      longitude: longitude || null,
       chart_data: chartData,
       created_at: new Date().toISOString()
     })

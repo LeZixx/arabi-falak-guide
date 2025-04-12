@@ -1,6 +1,7 @@
 
 import { HoroscopeResponse, HoroscopeType } from "@/types";
 import { supabase, saveUserChart, getUserChart, saveHoroscopePrediction, getLatestHoroscope } from "@/services/supabase";
+import { toast } from "sonner";
 
 // Define interfaces for Swiss Ephemeris data
 export interface PlanetaryPosition {
@@ -17,7 +18,33 @@ export interface AstrologyChart {
   aspects: { planet1: string; planet2: string; aspect: string; orb: number }[];
 }
 
-// This function would call a Supabase Edge Function that uses Swiss Ephemeris
+// Get geocoordinates for a place name
+async function getGeoCoordinates(placeName: string): Promise<{latitude: number, longitude: number} | null> {
+  try {
+    // Using OpenStreetMap's Nominatim API for geocoding
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(placeName)}`
+    );
+    
+    const data = await response.json();
+    
+    if (data && data.length > 0) {
+      return {
+        latitude: parseFloat(data[0].lat),
+        longitude: parseFloat(data[0].lon)
+      };
+    }
+    
+    // If no results found
+    console.error("No geocoding results for:", placeName);
+    return null;
+  } catch (error) {
+    console.error("Error geocoding place name:", error);
+    return null;
+  }
+}
+
+// This function calls the Supabase Edge Function that uses Swiss Ephemeris
 export const calculateNatalChart = async (
   userId: string,
   birthDate: string,
@@ -31,12 +58,74 @@ export const calculateNatalChart = async (
     return existingChart.chart_data as AstrologyChart;
   }
   
-  // In a real implementation, this would call a Supabase Edge Function
-  // that uses Swiss Ephemeris to calculate the chart
-  // For now, we'll return a placeholder example
-  
-  // Arabic planet and sign names
-  const placeholderChart: AstrologyChart = {
+  try {
+    // Get latitude and longitude from birth place
+    const coords = await getGeoCoordinates(birthPlace);
+    
+    if (!coords) {
+      toast.error("Couldn't find coordinates for the birth place");
+      throw new Error("Geocoding failed");
+    }
+    
+    // Call the Supabase Edge Function to calculate the chart
+    const { data, error } = await supabase.functions.invoke('calculate-birth-chart', {
+      body: {
+        birthDate,
+        birthTime,
+        birthPlace,
+        latitude: coords.latitude,
+        longitude: coords.longitude
+      }
+    });
+    
+    if (error) {
+      console.error("Error calling calculate-birth-chart function:", error);
+      
+      // Fall back to placeholder data if edge function fails
+      const placeholderChart = getPlaceholderChart();
+      
+      // Store the chart data in Supabase
+      await saveUserChart(
+        userId, 
+        birthDate, 
+        birthTime, 
+        birthPlace, 
+        placeholderChart, 
+        coords.latitude, 
+        coords.longitude
+      );
+      
+      return placeholderChart;
+    }
+    
+    // Store the chart data in Supabase
+    await saveUserChart(
+      userId, 
+      birthDate, 
+      birthTime, 
+      birthPlace, 
+      data, 
+      coords.latitude, 
+      coords.longitude
+    );
+    
+    return data as AstrologyChart;
+  } catch (error) {
+    console.error("Failed to calculate natal chart:", error);
+    
+    // Fall back to placeholder chart in case of errors
+    const placeholderChart = getPlaceholderChart();
+    
+    // Store the placeholder chart
+    await saveUserChart(userId, birthDate, birthTime, birthPlace, placeholderChart);
+    
+    return placeholderChart;
+  }
+};
+
+// Provide a placeholder chart for fallback
+function getPlaceholderChart(): AstrologyChart {
+  return {
     planets: [
       { planet: "الشمس", sign: "الحمل", degree: 15, retrograde: false },
       { planet: "القمر", sign: "السرطان", degree: 3, retrograde: false },
@@ -71,12 +160,7 @@ export const calculateNatalChart = async (
       { planet1: "عطارد", planet2: "المشتري", aspect: "مقارنة", orb: 3.1 },
     ]
   };
-  
-  // Store the chart data in Supabase
-  await saveUserChart(userId, birthDate, birthTime, birthPlace, placeholderChart);
-  
-  return placeholderChart;
-};
+}
 
 // Generate a horoscope interpretation based on Swiss Ephemeris data
 export const generateHoroscopeFromEphemeris = async (
