@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -71,26 +72,37 @@ const generateResponse = (
   return content.substring(0, characterLimit - 3) + "...";
 };
 
-const generateBirthChartSummary = (user: User): string => {
+const generateBirthChartSummary = async (user: User): Promise<string> => {
   if (!user.birthDate || !user.birthTime || !user.birthPlace) {
     return "";
   }
 
-  const chart = calculateNatalChart(user.birthDate, user.birthTime, user.birthPlace);
-  const zodiacSign = getZodiacSign(user.birthDate);
-  const zodiacEmoji = getZodiacEmoji(zodiacSign);
-  
-  const sun = chart.planets.find(p => p.planet === "الشمس");
-  const moon = chart.planets.find(p => p.planet === "القمر");
-  const mercury = chart.planets.find(p => p.planet === "عطارد");
-  
-  return `✨ خريطتك الفلكية الأساسية ✨\n\n` +
-    `برجك: ${zodiacSign} ${zodiacEmoji}\n` +
-    `الطالع: ${chart.ascendant} ↗️\n` +
-    `الشمس في: ${sun?.sign} ${sun?.retrograde ? "☿ᴿ" : ""}\n` +
-    `القمر في: ${moon?.sign} ${moon?.retrograde ? "☿ᴿ" : ""}\n` +
-    `عطارد في: ${mercury?.sign} ${mercury?.retrograde ? "☿ᴿ" : ""}\n\n` +
-    `هذه معلومات أساسية عن خريطتك الفلكية. ماذا تريد أن تعرف المزيد عنه؟ يمكنك استخدام الأوامر التالية:`;
+  try {
+    const chart = await calculateNatalChart(
+      user.id,
+      user.birthDate, 
+      user.birthTime, 
+      user.birthPlace
+    );
+    
+    const zodiacSign = getZodiacSign(user.birthDate);
+    const zodiacEmoji = getZodiacEmoji(zodiacSign);
+    
+    const sun = chart.planets.find(p => p.planet === "الشمس");
+    const moon = chart.planets.find(p => p.planet === "القمر");
+    const mercury = chart.planets.find(p => p.planet === "عطارد");
+    
+    return `✨ خريطتك الفلكية الأساسية ✨\n\n` +
+      `برجك: ${zodiacSign} ${zodiacEmoji}\n` +
+      `الطالع: ${chart.ascendant} ↗️\n` +
+      `الشمس في: ${sun?.sign} ${sun?.retrograde ? "☿ᴿ" : ""}\n` +
+      `القمر في: ${moon?.sign} ${moon?.retrograde ? "☿ᴿ" : ""}\n` +
+      `عطارد في: ${mercury?.sign} ${mercury?.retrograde ? "☿ᴿ" : ""}\n\n` +
+      `هذه معلومات أساسية عن خريطتك الفلكية. ماذا تريد أن تعرف المزيد عنه؟ يمكنك استخدام الأوامر التالية:`;
+  } catch (error) {
+    console.error("Error generating birth chart summary:", error);
+    return "حدث خطأ أثناء توليد معلومات خريطتك الفلكية. يرجى المحاولة مرة أخرى لاحقًا.";
+  }
 };
 
 const formatBirthDetailsMessage = (birthDate: string, birthTime: string, birthPlace: string): string => {
@@ -138,8 +150,8 @@ const TelegramBot: React.FC = () => {
           );
         }, 1000);
         
-        setTimeout(() => {
-          const birthChartSummary = generateBirthChartSummary(existingUser);
+        setTimeout(async () => {
+          const birthChartSummary = await generateBirthChartSummary(existingUser);
           addBotMessage(birthChartSummary);
         }, 2000);
         
@@ -348,8 +360,8 @@ const TelegramBot: React.FC = () => {
                   
                 addBotMessage(`تم إكمال الإعداد بنجاح ✨ ${dialectInfo?.flag || ""}\n\n${getDialectGreeting(dialect)}${trialInfo}`);
                 
-                setTimeout(() => {
-                  const birthChartSummary = generateBirthChartSummary(updatedUser);
+                setTimeout(async () => {
+                  const birthChartSummary = await generateBirthChartSummary(updatedUser);
                   addBotMessage(birthChartSummary);
                   
                   setTimeout(() => {
@@ -377,7 +389,7 @@ const TelegramBot: React.FC = () => {
     setIsDialogOpen(true);
   };
   
-  const showUserData = () => {
+  const showUserData = async () => {
     if (!user || !user.birthDate || !user.dialect) {
       addBotMessage("لم تكمل إعداد ملفك الشخصي بعد. الرجاء كتابة /start للبدء.");
       return;
@@ -407,8 +419,8 @@ const TelegramBot: React.FC = () => {
       (user.subscriptionTier > 0 && tierInfo.questionsPerMonth ? `الأسئلة المتبقية هذا الشهر: ${tierInfo.questionsPerMonth - user.totalMessagesThisMonth}/${tierInfo.questionsPerMonth} 📝\n` : "")
     );
     
-    setTimeout(() => {
-      const birthChartSummary = generateBirthChartSummary(user);
+    setTimeout(async () => {
+      const birthChartSummary = await generateBirthChartSummary(user);
       addBotMessage(birthChartSummary);
       
       setTimeout(() => {
@@ -464,7 +476,7 @@ const TelegramBot: React.FC = () => {
     setIsDialogOpen(true);
   };
   
-  const showHoroscope = (type: HoroscopeType) => {
+  const showHoroscope = async (type: HoroscopeType) => {
     if (!user || !user.birthDate || !user.dialect) {
       addBotMessage("لم تكمل إعداد ملفك الشخصي بعد. الرجاء كتابة /start للبدء.");
       return;
@@ -495,53 +507,59 @@ const TelegramBot: React.FC = () => {
       return;
     }
     
-    const horoscope = generateHoroscope(
-      user.birthDate,
-      user.birthTime || "",
-      user.birthPlace || "",
-      type,
-      user.dialect
-    );
-    
-    const zodiacSign = getZodiacSign(user.birthDate);
-    const zodiacEmoji = getZodiacEmoji(zodiacSign);
-    
-    setDialogContent(
-      <HoroscopeCard 
-        horoscope={horoscope}
-        zodiacSign={zodiacSign}
-        zodiacEmoji={zodiacEmoji}
-      />
-    );
-    setIsDialogOpen(true);
-    
-    const typeEmojis = {
-      daily: "✨",
-      love: "❤️",
-      career: "💼",
-      health: "🌿"
-    };
-    
-    const forecastRange = getForecastRange(user.subscriptionTier);
-    const forecastInfo = `(توقعات لـ ${forecastRange})`;
-    
-    const dialectInfo = getDialectInfo(user.dialect);
-    addBotMessage(`${horoscope.title} ${typeEmojis[type]} ${dialectInfo?.flag || ""} ${forecastInfo}\n\n${horoscope.content}\n\nالرقم المحظوظ: ${horoscope.luckyNumber} 🔮\nالنجم المحظوظ: ${horoscope.luckyStar} 🌟\nاللون المحظوظ: ${horoscope.luckyColor} 🎨`);
-    
-    setTimeout(() => {
-      addBotMessage(
-        "الأوامر المتاحة:\n" +
-        "🔄 /start - بدء من جديد\n" +
-        "📋 /mydata - بياناتي\n" +
-        "🗣️ /change_dialect - تغيير اللهجة\n" +
-        "⭐ /subscribe - الاشتراكات\n" +
-        "🔮 /horoscope - قراءة يومية\n" +
-        "❤️ /love - توقعات الحب\n" +
-        "💼 /career - توقعات العمل\n" +
-        "🌿 /health - توقعات الصحة\n" +
-        "❓ /ask - سؤال مخصص"
+    try {
+      const horoscope = await generateHoroscope(
+        user.id,
+        user.birthDate,
+        user.birthTime || "",
+        user.birthPlace || "",
+        type,
+        user.dialect
       );
-    }, 2000);
+      
+      const zodiacSign = getZodiacSign(user.birthDate);
+      const zodiacEmoji = getZodiacEmoji(zodiacSign);
+      
+      setDialogContent(
+        <HoroscopeCard 
+          horoscope={horoscope}
+          zodiacSign={zodiacSign}
+          zodiacEmoji={zodiacEmoji}
+        />
+      );
+      setIsDialogOpen(true);
+      
+      const typeEmojis = {
+        daily: "✨",
+        love: "❤️",
+        career: "💼",
+        health: "🌿"
+      };
+      
+      const forecastRange = getForecastRange(user.subscriptionTier);
+      const forecastInfo = `(توقعات لـ ${forecastRange})`;
+      
+      const dialectInfo = getDialectInfo(user.dialect);
+      addBotMessage(`${horoscope.title} ${typeEmojis[type]} ${dialectInfo?.flag || ""} ${forecastInfo}\n\n${horoscope.content}\n\nالرقم المحظوظ: ${horoscope.luckyNumber} 🔮\nالنجم المحظوظ: ${horoscope.luckyStar} 🌟\nاللون المحظوظ: ${horoscope.luckyColor} 🎨`);
+      
+      setTimeout(() => {
+        addBotMessage(
+          "الأوامر المتاحة:\n" +
+          "🔄 /start - بدء من جديد\n" +
+          "📋 /mydata - بياناتي\n" +
+          "🗣️ /change_dialect - تغيير اللهجة\n" +
+          "⭐ /subscribe - الاشتراكات\n" +
+          "🔮 /horoscope - قراءة يومية\n" +
+          "❤️ /love - توقعات الحب\n" +
+          "💼 /career - توقعات العمل\n" +
+          "🌿 /health - توقعات الصحة\n" +
+          "❓ /ask - سؤال مخصص"
+        );
+      }, 2000);
+    } catch (error) {
+      console.error("Error generating horoscope:", error);
+      addBotMessage("عذراً، حدث خطأ أثناء توليد التوقعات الفلكية. يرجى المحاولة مرة أخرى لاحقاً.");
+    }
   };
   
   const askQuestion = () => {
