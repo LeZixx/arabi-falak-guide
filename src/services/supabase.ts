@@ -1,12 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
 import { toast } from 'sonner';
+import { supabase as supabaseClient } from '@/integrations/supabase/client';
 
-// Environment variables for Supabase credentials (will be provided by Lovable)
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-// Create Supabase client
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Use the existing Supabase client that's already configured
+export const supabase = supabaseClient;
 
 // Check if Supabase is properly connected
 export const checkSupabaseConnection = async (): Promise<boolean> => {
