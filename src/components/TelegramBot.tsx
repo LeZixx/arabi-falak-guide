@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -6,6 +5,7 @@ import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
 
 import StarryBackground from "./StarryBackground";
 import MockTelegramHeader from "./MockTelegramHeader";
@@ -46,7 +46,12 @@ import {
   SUBSCRIPTION_TIERS,
   getCharacterLimit
 } from "@/utils/subscription-utils";
-import { calculateNatalChart } from "@/utils/swiss-ephemeris-utils";
+import { 
+  calculateNatalChart 
+} from "@/utils/swiss-ephemeris-utils";
+import { 
+  checkSupabaseConnection 
+} from "@/services/supabase";
 import { Dialect, User, HoroscopeType } from "@/types";
 
 interface Message {
@@ -119,6 +124,16 @@ const TelegramBot: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
   useEffect(() => {
+    const checkSupabase = async () => {
+      const isConnected = await checkSupabaseConnection();
+      if (!isConnected) {
+        toast.error('فشل الاتصال بقاعدة البيانات', {
+          description: 'تحقق من إعدادات Supabase الخاصة بك'
+        });
+      }
+    };
+    
+    checkSupabase();
     resetMessageCountForNewDay();
     
     const existingUser = getUser();
@@ -183,7 +198,7 @@ const TelegramBot: React.FC = () => {
           "• قراءات فلكية شخصية ومخصصة بناءً على بياناتك الفريدة 🌟\n" +
           "• توقعات يومية دقيقة مرتبطة ببرجك وولادتك ✨\n" +
           "• اختيار اللهجة العربية التي تشعر بها 🗣️\n" +
-          "• إرشادات روحية مخصصة للحب والعمل والصحة 💫\n\n" +
+          "• إر��ادات روحية مخصصة للحب والعمل والصحة 💫\n\n" +
           "استمتع بفترة تجربة مجانية كاملة لمدة 7 أيام ✨\n\n" +
           "لتبدأ رحلتك الفلكية الشخصية، نحتاج إلى معلومات ميلادك الدقيقة.\n" +
           "اكتب /start الآن لإنشاء مرشدك الفلكي الخاص ✨🌙"
@@ -508,6 +523,12 @@ const TelegramBot: React.FC = () => {
     }
     
     try {
+      const isConnected = await checkSupabaseConnection();
+      if (!isConnected) {
+        addBotMessage("عذراً، لا يمكن توليد التوقعات الفلكية لأن الاتصال بقاعدة البيانات غير متوفر. يرجى المحاولة مرة أخرى لاحقاً.");
+        return;
+      }
+      
       const horoscope = await generateHoroscope(
         user.id,
         user.birthDate,

@@ -1,5 +1,5 @@
-
 import { createClient } from '@supabase/supabase-js';
+import { toast } from 'sonner';
 
 // Environment variables for Supabase credentials (will be provided by Lovable)
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -7,6 +7,70 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 // Create Supabase client
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+// Check if Supabase is properly connected
+export const checkSupabaseConnection = async (): Promise<boolean> => {
+  try {
+    // Try to get a simple response from Supabase
+    const { data, error } = await supabase.from('astrology_charts').select('count').limit(1);
+    
+    if (error) {
+      if (error.code === '42P01') {
+        // Table doesn't exist - needs to be created
+        toast.error('Supabase tables not found. Please create the required tables.', {
+          description: 'Check the console for SQL instructions.'
+        });
+        
+        console.error('Error: Required Supabase tables not found');
+        console.log('Please create the following tables in your Supabase project:');
+        console.log(`
+-- Table: astrology_charts
+CREATE TABLE astrology_charts (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  birth_date TEXT NOT NULL,
+  birth_time TEXT NOT NULL,
+  birth_place TEXT NOT NULL,
+  latitude FLOAT,
+  longitude FLOAT,
+  chart_data JSONB,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Table: horoscope_predictions
+CREATE TABLE horoscope_predictions (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  chart_id TEXT NOT NULL,
+  type TEXT NOT NULL,
+  content TEXT NOT NULL,
+  lucky_number INTEGER,
+  lucky_star TEXT,
+  lucky_color TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  valid_until TIMESTAMP WITH TIME ZONE NOT NULL
+);
+        `);
+        return false;
+      } else {
+        // Other error
+        toast.error('Supabase connection error', {
+          description: error.message
+        });
+        console.error('Supabase connection error:', error);
+        return false;
+      }
+    }
+    
+    return true;
+  } catch (error) {
+    toast.error('Supabase connection failed', {
+      description: 'Please check your Supabase credentials'
+    });
+    console.error('Supabase connection failed:', error);
+    return false;
+  }
+};
 
 // Database table interfaces
 export interface AstrologyChart {
@@ -55,6 +119,11 @@ export const saveUserChart = async (
     .select()
     .single();
 
+  if (error && error.code === '42P01') {
+    // Table doesn't exist
+    await checkSupabaseConnection();
+  }
+
   return { data, error };
 };
 
@@ -66,6 +135,11 @@ export const getUserChart = async (userId: string): Promise<{ data: AstrologyCha
     .order('created_at', { ascending: false })
     .limit(1)
     .single();
+
+  if (error && error.code === '42P01') {
+    // Table doesn't exist
+    await checkSupabaseConnection();
+  }
 
   return { data, error };
 };
@@ -96,6 +170,11 @@ export const saveHoroscopePrediction = async (
     .select()
     .single();
 
+  if (error && error.code === '42P01') {
+    // Table doesn't exist
+    await checkSupabaseConnection();
+  }
+
   return { data, error };
 };
 
@@ -112,6 +191,11 @@ export const getLatestHoroscope = async (
     .order('created_at', { ascending: false })
     .limit(1)
     .single();
+
+  if (error && error.code === '42P01') {
+    // Table doesn't exist
+    await checkSupabaseConnection();
+  }
 
   return { data, error };
 };
