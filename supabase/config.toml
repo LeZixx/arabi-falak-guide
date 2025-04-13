@@ -1,5 +1,2 @@
 
 project_id = "iflrjqxwxivnrhhgoobz"
-
-[functions.calculate-birth-chart]
-verify_jwt = false

@@ -2,6 +2,7 @@
 import { HoroscopeResponse, HoroscopeType } from "@/types";
 import { supabase, saveUserChart, getUserChart, saveHoroscopePrediction, getLatestHoroscope } from "@/services/supabase";
 import { toast } from "sonner";
+import * as swisseph from "swisseph";
 
 // Define interfaces for Swiss Ephemeris data
 export interface PlanetaryPosition {
@@ -44,7 +45,78 @@ async function getGeoCoordinates(placeName: string): Promise<{latitude: number, 
   }
 }
 
-// This function calls the Supabase Edge Function that uses Swiss Ephemeris
+// Arabic zodiac signs in order starting with Aries
+const arabicSigns = [
+  "الحمل", "الثور", "الجوزاء", "السرطان", 
+  "الأسد", "العذراء", "الميزان", "العقرب", 
+  "القوس", "الجدي", "الدلو", "الحوت"
+];
+
+// Arabic planet names mapping
+const arabicPlanetNames = {
+  0: "الشمس",    // Sun
+  1: "القمر",    // Moon
+  2: "عطارد",    // Mercury
+  3: "الزهرة",   // Venus
+  4: "المريخ",   // Mars
+  5: "المشتري",  // Jupiter
+  6: "زحل",      // Saturn
+  7: "أورانوس",  // Uranus
+  8: "نبتون",    // Neptune
+  9: "بلوتو",    // Pluto
+};
+
+// Get sign name from longitude (0-360 degrees)
+function getSignFromLongitude(longitude: number): string {
+  const signIndex = Math.floor(longitude / 30) % 12;
+  return arabicSigns[signIndex];
+}
+
+// Calculate aspects between planets
+function calculateAspects(planetPositions: { [key: number]: number }): { planet1: string; planet2: string; aspect: string; orb: number }[] {
+  const aspects: { planet1: string; planet2: string; aspect: string; orb: number }[] = [];
+  const aspectTypes = {
+    0: { name: "مقارنة", orb: 8 },    // Conjunction
+    60: { name: "تسديس", orb: 6 },    // Sextile
+    90: { name: "تربيع", orb: 8 },    // Square
+    120: { name: "تثليث", orb: 8 },   // Trine
+    180: { name: "مقابلة", orb: 10 }, // Opposition
+  };
+
+  const planets = Object.keys(planetPositions).map(Number);
+  
+  for (let i = 0; i < planets.length; i++) {
+    for (let j = i + 1; j < planets.length; j++) {
+      const planet1 = planets[i];
+      const planet2 = planets[j];
+      
+      // Calculate the angular difference between the two planets
+      let diff = Math.abs(planetPositions[planet1] - planetPositions[planet2]);
+      if (diff > 180) diff = 360 - diff;
+      
+      // Check for aspects
+      for (const [angle, { name, orb }] of Object.entries(aspectTypes)) {
+        const angleNum = parseInt(angle);
+        const orbtolerance = diff >= angleNum - orb && diff <= angleNum + orb;
+        
+        if (orbtolerance) {
+          const actualOrb = Math.abs(diff - angleNum);
+          aspects.push({
+            planet1: arabicPlanetNames[planet1 as keyof typeof arabicPlanetNames],
+            planet2: arabicPlanetNames[planet2 as keyof typeof arabicPlanetNames],
+            aspect: name,
+            orb: parseFloat(actualOrb.toFixed(1)),
+          });
+          break;
+        }
+      }
+    }
+  }
+  
+  return aspects;
+}
+
+// This function calculates a natal chart using Swiss Ephemeris
 export const calculateNatalChart = async (
   userId: string,
   birthDate: string,
@@ -67,36 +139,110 @@ export const calculateNatalChart = async (
       throw new Error("Geocoding failed");
     }
     
-    // Call the Supabase Edge Function to calculate the chart
-    const { data, error } = await supabase.functions.invoke('calculate-birth-chart', {
-      body: {
-        birthDate,
-        birthTime,
-        birthPlace,
-        latitude: coords.latitude,
-        longitude: coords.longitude
-      }
-    });
+    // Parse birth date and time
+    const [year, month, day] = birthDate.split('-').map(Number);
+    const [hour, minute] = birthTime.split(':').map(Number);
     
-    if (error) {
-      console.error("Error calling calculate-birth-chart function:", error);
-      
-      // Fall back to placeholder data if edge function fails
-      const placeholderChart = getPlaceholderChart();
-      
-      // Store the chart data in Supabase
-      await saveUserChart(
-        userId, 
-        birthDate, 
-        birthTime, 
-        birthPlace, 
-        placeholderChart, 
-        coords.latitude, 
-        coords.longitude
+    // Calculate Julian day
+    const julday = swisseph.swe_julday(
+      year,
+      month,
+      day,
+      hour + minute / 60,
+      swisseph.SE_GREG_CAL
+    );
+    
+    // Set geographic location
+    const geopos = [coords.longitude, coords.latitude, 0];
+    
+    // Initialize object to store planetary positions
+    const planetPositions: { [key: number]: number } = {};
+    const planets: PlanetaryPosition[] = [];
+    
+    // Calculate positions for all planets
+    for (let i = 0; i <= 9; i++) {
+      try {
+        // Calculate planet position
+        const result = swisseph.swe_calc_ut(julday, i, swisseph.SEFLG_SPEED);
+        
+        if (result.status === swisseph.OK) {
+          const longitude = result.longitude % 360;
+          planetPositions[i] = longitude;
+          
+          // Get sign and degree
+          const sign = getSignFromLongitude(longitude);
+          const degree = longitude % 30;
+          
+          // Check if retrograde
+          const retrograde = result.speedLong < 0;
+          
+          planets.push({
+            planet: arabicPlanetNames[i as keyof typeof arabicPlanetNames],
+            sign,
+            degree: parseFloat(degree.toFixed(1)),
+            retrograde,
+          });
+        }
+      } catch (error) {
+        console.error(`Error calculating position for planet ${i}:`, error);
+      }
+    }
+    
+    // Calculate house cusps and ascendant
+    const houses = [];
+    let ascendant = "";
+    
+    try {
+      // Use Placidus house system
+      const houseResult = swisseph.swe_houses(
+        julday,
+        geopos[1],
+        geopos[0],
+        'P'
       );
       
-      return placeholderChart;
+      // Get ascendant and convert to sign
+      const ascLongitude = houseResult.ascendant % 360;
+      ascendant = getSignFromLongitude(ascLongitude);
+      
+      // Get house cusps
+      for (let i = 1; i <= 12; i++) {
+        const cuspLongitude = houseResult.house[i - 1] % 360;
+        const sign = getSignFromLongitude(cuspLongitude);
+        houses.push({ house: i, sign });
+      }
+    } catch (error) {
+      console.error("Error calculating houses:", error);
+      
+      // Fallback to generic houses based on ascendant
+      const signIndices = {
+        "الحمل": 0, "الثور": 1, "الجوزاء": 2, "السرطان": 3,
+        "الأسد": 4, "العذراء": 5, "الميزان": 6, "العقرب": 7,
+        "القوس": 8, "الجدي": 9, "الدلو": 10, "الحوت": 11
+      };
+      
+      // Use the Sun sign as ascendant in fallback
+      const sunPosition = planets.find(p => p.planet === arabicPlanetNames[0]);
+      ascendant = sunPosition ? sunPosition.sign : arabicSigns[0];
+      
+      const ascIndex = signIndices[ascendant as keyof typeof signIndices];
+      
+      for (let i = 1; i <= 12; i++) {
+        const signIndex = (ascIndex + i - 1) % 12;
+        houses.push({ house: i, sign: arabicSigns[signIndex] });
+      }
     }
+    
+    // Calculate aspects
+    const aspects = calculateAspects(planetPositions);
+    
+    // Construct the chart data
+    const chartData: AstrologyChart = {
+      planets,
+      ascendant,
+      houses,
+      aspects,
+    };
     
     // Store the chart data in Supabase
     await saveUserChart(
@@ -104,12 +250,12 @@ export const calculateNatalChart = async (
       birthDate, 
       birthTime, 
       birthPlace, 
-      data, 
+      chartData, 
       coords.latitude, 
       coords.longitude
     );
     
-    return data as AstrologyChart;
+    return chartData;
   } catch (error) {
     console.error("Failed to calculate natal chart:", error);
     
