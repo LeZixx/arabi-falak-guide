@@ -5,7 +5,7 @@ import {
   calculateNatalChart, 
   generateHoroscopeFromEphemeris, 
   getZodiacSign, 
-  getZodiacEmoji
+  getZodiacEmoji 
 } from "./swiss-ephemeris-utils";
 
 // Generate a horoscope based on user data
@@ -18,7 +18,7 @@ export const generateHoroscope = async (
   dialect: Dialect
 ): Promise<HoroscopeResponse> => {
   try {
-    // Calculate natal chart using Swiss Ephemeris via Supabase
+    // Calculate natal chart using Swiss Ephemeris via our local implementation
     const chart = await calculateNatalChart(userId, birthDate, birthTime, birthPlace);
     
     // Generate personalized horoscope from chart data

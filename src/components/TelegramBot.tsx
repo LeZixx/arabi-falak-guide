@@ -49,9 +49,6 @@ import {
 import { 
   calculateNatalChart 
 } from "@/utils/swiss-ephemeris-utils";
-import { 
-  checkSupabaseConnection 
-} from "@/services/supabase";
 import { Dialect, User, HoroscopeType } from "@/types";
 
 interface Message {
@@ -124,16 +121,6 @@ const TelegramBot: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
   useEffect(() => {
-    const checkSupabase = async () => {
-      const isConnected = await checkSupabaseConnection();
-      if (!isConnected) {
-        toast.error('فشل الاتصال بقاعدة البيانات', {
-          description: 'تحقق من إعدادات Supabase الخاصة بك'
-        });
-      }
-    };
-    
-    checkSupabase();
     resetMessageCountForNewDay();
     
     const existingUser = getUser();
@@ -198,7 +185,7 @@ const TelegramBot: React.FC = () => {
           "• قراءات فلكية شخصية ومخصصة بناءً على بياناتك الفريدة 🌟\n" +
           "• توقعات يومية دقيقة مرتبطة ببرجك وولادتك ✨\n" +
           "• اختيار اللهجة العربية التي تشعر بها 🗣️\n" +
-          "• إر��ادات روحية مخصصة للحب والعمل والصحة 💫\n\n" +
+          "• إرشادات روحية مخصصة للحب والعمل والصحة 💫\n\n" +
           "استمتع بفترة تجربة مجانية كاملة لمدة 7 أيام ✨\n\n" +
           "لتبدأ رحلتك الفلكية الشخصية، نحتاج إلى معلومات ميلادك الدقيقة.\n" +
           "اكتب /start الآن لإنشاء مرشدك الفلكي الخاص ✨🌙"
@@ -523,12 +510,6 @@ const TelegramBot: React.FC = () => {
     }
     
     try {
-      const isConnected = await checkSupabaseConnection();
-      if (!isConnected) {
-        addBotMessage("عذراً، لا يمكن توليد التوقعات الفلكية لأن الاتصال بقاعدة البيانات غير متوفر. يرجى المحاولة مرة أخرى لاحقاً.");
-        return;
-      }
-      
       const horoscope = await generateHoroscope(
         user.id,
         user.birthDate,
@@ -579,7 +560,7 @@ const TelegramBot: React.FC = () => {
       }, 2000);
     } catch (error) {
       console.error("Error generating horoscope:", error);
-      addBotMessage("عذراً، حدث خطأ أثناء توليد التوقعات الفلكية. يرجى المحاولة مرة أخرى لاحقاً.");
+      addBotMessage("عذراً، حدث خطأ أثناء توليد التوقعات الفلكية. يرجى المحاولة مرة أخرى لاحقًا.");
     }
   };
   

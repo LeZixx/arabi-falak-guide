@@ -1,113 +1,201 @@
 
-import { HoroscopeResponse, HoroscopeType } from "@/types";
-import { supabase, saveUserChart, getUserChart, saveHoroscopePrediction, getLatestHoroscope } from "@/services/supabase";
-import { toast } from "sonner";
-import * as swisseph from "swisseph";
+import swisseph from "swisseph";
+import { HoroscopeResponse, HoroscopeType, Dialect } from "@/types";
+import { getDialectExample } from "./dialect-utils";
 
-// Define interfaces for Swiss Ephemeris data
-export interface PlanetaryPosition {
-  planet: string;
-  sign: string;
-  degree: number;
-  retrograde: boolean;
-}
+// Initialize Swiss Ephemeris
+swisseph.swe_set_ephe_path(null);
 
-export interface AstrologyChart {
-  planets: PlanetaryPosition[];
-  ascendant: string;
-  houses: { house: number; sign: string }[];
-  aspects: { planet1: string; planet2: string; aspect: string; orb: number }[];
-}
-
-// Get geocoordinates for a place name
-async function getGeoCoordinates(placeName: string): Promise<{latitude: number, longitude: number} | null> {
-  try {
-    // Using OpenStreetMap's Nominatim API for geocoding
-    const response = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(placeName)}`
-    );
-    
-    const data = await response.json();
-    
-    if (data && data.length > 0) {
-      return {
-        latitude: parseFloat(data[0].lat),
-        longitude: parseFloat(data[0].lon)
-      };
-    }
-    
-    // If no results found
-    console.error("No geocoding results for:", placeName);
-    return null;
-  } catch (error) {
-    console.error("Error geocoding place name:", error);
-    return null;
-  }
-}
-
-// Arabic zodiac signs in order starting with Aries
-const arabicSigns = [
+// Zodiac signs in Arabic
+const zodiacSigns = [
   "الحمل", "الثور", "الجوزاء", "السرطان", 
   "الأسد", "العذراء", "الميزان", "العقرب", 
   "القوس", "الجدي", "الدلو", "الحوت"
 ];
 
-// Arabic planet names mapping
-const arabicPlanetNames = {
-  0: "الشمس",    // Sun
-  1: "القمر",    // Moon
-  2: "عطارد",    // Mercury
-  3: "الزهرة",   // Venus
-  4: "المريخ",   // Mars
+// Planet names in Arabic
+const planetNames = {
+  0: "الشمس",  // Sun
+  1: "القمر",  // Moon
+  2: "عطارد",  // Mercury
+  3: "الزهرة",  // Venus
+  4: "المريخ",  // Mars
   5: "المشتري",  // Jupiter
-  6: "زحل",      // Saturn
+  6: "زحل",   // Saturn
   7: "أورانوس",  // Uranus
-  8: "نبتون",    // Neptune
-  9: "بلوتو",    // Pluto
+  8: "نبتون",  // Neptune
+  9: "بلوتو"   // Pluto
 };
 
-// Get sign name from longitude (0-360 degrees)
-function getSignFromLongitude(longitude: number): string {
-  const signIndex = Math.floor(longitude / 30) % 12;
-  return arabicSigns[signIndex];
+// Calculate Julian day from date and time
+function getJulianDay(dateStr: string, timeStr: string, longitude: number = 0): number {
+  const [year, month, day] = dateStr.split("-").map(n => parseInt(n, 10));
+  const [hour, minute] = timeStr.split(":").map(n => parseInt(n, 10));
+  
+  // Calculate Julian day
+  const julDay = swisseph.swe_julday(
+    year,
+    month,
+    day,
+    hour + minute / 60.0,
+    swisseph.SE_GREG_CAL
+  );
+  
+  // Adjust for time zone
+  // Note: longitude is used as an approximation for timezone
+  // In a production environment, use a timezone database
+  const timezoneOffset = longitude / 15.0;  // Rough estimate: 15° = 1 hour
+  
+  return julDay - (timezoneOffset / 24.0);
+}
+
+// Get coordinates from birth place name
+// Since we're not using geocoding API anymore, this is a simple placeholder
+// In real app, you'd want to use a geocoding service or let users input coordinates
+function getCoordinates(birthPlace: string): { latitude: number, longitude: number } {
+  // Default coordinates (0, 0) as fallback
+  const defaultCoords = { latitude: 0, longitude: 0 };
+  
+  // Some placeholder major cities for demonstration
+  const cities: Record<string, { latitude: number, longitude: number }> = {
+    "القاهرة": { latitude: 30.0444, longitude: 31.2357 },
+    "دبي": { latitude: 25.2048, longitude: 55.2708 },
+    "الرياض": { latitude: 24.7136, longitude: 46.6753 },
+    "بيروت": { latitude: 33.8938, longitude: 35.5018 },
+    "بغداد": { latitude: 33.3152, longitude: 44.3661 },
+    "طرابلس": { latitude: 32.8872, longitude: 13.1913 },
+    "الدار البيضاء": { latitude: 33.5731, longitude: -7.5898 },
+    "الجزائر": { latitude: 36.7538, longitude: 3.0588 },
+    "تونس": { latitude: 36.8065, longitude: 10.1815 },
+    // Add more cities as needed
+  };
+  
+  // Check if birthplace matches any known city
+  if (cities[birthPlace]) {
+    return cities[birthPlace];
+  }
+  
+  console.log(`No coordinates found for ${birthPlace}, using default coordinates`);
+  return defaultCoords;
+}
+
+// Calculate planetary positions
+function calculatePlanetaryPositions(julDay: number) {
+  const planets = [];
+  
+  // Calculate positions for each planet
+  for (let i = 0; i <= 9; i++) {
+    // Skip Earth (SE_EARTH = 3 in Swiss Ephemeris)
+    if (i === 3) continue;
+    
+    try {
+      const result = swisseph.swe_calc_ut(julDay, i, swisseph.SEFLG_SPEED);
+      
+      // Check result
+      if (result && 'longitude' in result) {
+        const longitude = result.longitude;
+        const signIndex = Math.floor(longitude / 30);
+        const degree = longitude % 30;
+        // In newer versions, it's longitudeSpeed
+        const retrograde = result.longitudeSpeed < 0 || ('speedLong' in result && result.speedLong < 0);
+        
+        planets.push({
+          planet: planetNames[i] || `Planet ${i}`,
+          sign: zodiacSigns[signIndex],
+          degree: parseFloat(degree.toFixed(2)),
+          retrograde: retrograde
+        });
+      } else {
+        console.error(`Error calculating position for planet ${i}: Invalid result structure`, result);
+      }
+    } catch (error) {
+      console.error(`Error calculating position for planet ${i}:`, error);
+    }
+  }
+  
+  return planets;
+}
+
+// Calculate house cusps
+function calculateHouses(julDay: number, latitude: number, longitude: number) {
+  const houses = [];
+  const result = swisseph.swe_houses(
+    julDay,
+    latitude,
+    longitude,
+    'P'  // Placidus house system
+  );
+  
+  if (result && 'house' in result) {
+    for (let i = 1; i <= 12; i++) {
+      const longitude = result.house[i - 1];
+      const signIndex = Math.floor(longitude / 30);
+      houses.push({
+        house: i,
+        sign: zodiacSigns[signIndex]
+      });
+    }
+  } else {
+    console.error("Error calculating houses:", result);
+  }
+  
+  return houses;
+}
+
+// Calculate the ascendant
+function calculateAscendant(julDay: number, latitude: number, longitude: number) {
+  const result = swisseph.swe_houses(
+    julDay,
+    latitude,
+    longitude,
+    'P'  // Placidus house system
+  );
+  
+  if (result && 'ascendant' in result) {
+    const ascLongitude = result.ascendant;
+    const signIndex = Math.floor(ascLongitude / 30);
+    return zodiacSigns[signIndex];
+  }
+  
+  return "Unknown";
 }
 
 // Calculate aspects between planets
-function calculateAspects(planetPositions: { [key: number]: number }): { planet1: string; planet2: string; aspect: string; orb: number }[] {
-  const aspects: { planet1: string; planet2: string; aspect: string; orb: number }[] = [];
-  const aspectTypes = {
-    0: { name: "مقارنة", orb: 8 },    // Conjunction
-    60: { name: "تسديس", orb: 6 },    // Sextile
-    90: { name: "تربيع", orb: 8 },    // Square
-    120: { name: "تثليث", orb: 8 },   // Trine
-    180: { name: "مقابلة", orb: 10 }, // Opposition
-  };
-
-  const planets = Object.keys(planetPositions).map(Number);
+function calculateAspects(planets) {
+  const aspects = [];
+  const aspectDefs = [
+    { name: "مقارنة", angle: 0, orb: 8 },    // Conjunction
+    { name: "تسديس", angle: 60, orb: 6 },   // Sextile
+    { name: "تربيع", angle: 90, orb: 7 },   // Square
+    { name: "تثليث", angle: 120, orb: 8 },  // Trine
+    { name: "تقابل", angle: 180, orb: 8 },  // Opposition
+  ];
   
   for (let i = 0; i < planets.length; i++) {
     for (let j = i + 1; j < planets.length; j++) {
+      // Calculate the difference in longitude
       const planet1 = planets[i];
       const planet2 = planets[j];
       
-      // Calculate the angular difference between the two planets
-      let diff = Math.abs(planetPositions[planet1] - planetPositions[planet2]);
+      // Calculate positions in degrees within the entire zodiac
+      const pos1 = zodiacSigns.indexOf(planet1.sign) * 30 + planet1.degree;
+      const pos2 = zodiacSigns.indexOf(planet2.sign) * 30 + planet2.degree;
+      
+      // Find the smallest angle between the two positions
+      let diff = Math.abs(pos1 - pos2);
       if (diff > 180) diff = 360 - diff;
       
       // Check for aspects
-      for (const [angle, { name, orb }] of Object.entries(aspectTypes)) {
-        const angleNum = parseInt(angle);
-        const orbtolerance = diff >= angleNum - orb && diff <= angleNum + orb;
-        
-        if (orbtolerance) {
-          const actualOrb = Math.abs(diff - angleNum);
+      for (const aspectDef of aspectDefs) {
+        const orb = Math.abs(diff - aspectDef.angle);
+        if (orb <= aspectDef.orb) {
           aspects.push({
-            planet1: arabicPlanetNames[planet1 as keyof typeof arabicPlanetNames],
-            planet2: arabicPlanetNames[planet2 as keyof typeof arabicPlanetNames],
-            aspect: name,
-            orb: parseFloat(actualOrb.toFixed(1)),
+            planet1: planet1.planet,
+            planet2: planet2.planet,
+            aspect: aspectDef.aspect,
+            orb: parseFloat(orb.toFixed(2))
           });
-          break;
+          break;  // Only count the closest aspect
         }
       }
     }
@@ -116,282 +204,178 @@ function calculateAspects(planetPositions: { [key: number]: number }): { planet1
   return aspects;
 }
 
-// This function calculates a natal chart using Swiss Ephemeris
+// Calculate natal chart
 export const calculateNatalChart = async (
   userId: string,
-  birthDate: string,
-  birthTime: string,
-  birthPlace: string,
-): Promise<AstrologyChart> => {
-  // First check if we already have this chart stored
-  const { data: existingChart } = await getUserChart(userId);
-  
-  if (existingChart && existingChart.chart_data) {
-    return existingChart.chart_data as AstrologyChart;
-  }
-  
+  birthDate: string, 
+  birthTime: string, 
+  birthPlace: string
+): Promise<any> => {
   try {
-    // Get latitude and longitude from birth place
-    const coords = await getGeoCoordinates(birthPlace);
+    console.log(`Calculating natal chart for: ${birthDate} ${birthTime} ${birthPlace}`);
     
-    if (!coords) {
-      toast.error("Couldn't find coordinates for the birth place");
-      throw new Error("Geocoding failed");
-    }
-    
-    // Parse birth date and time
-    const [year, month, day] = birthDate.split('-').map(Number);
-    const [hour, minute] = birthTime.split(':').map(Number);
+    // Get coordinates from birth place
+    const { latitude, longitude } = getCoordinates(birthPlace);
+    console.log(`Coordinates: lat=${latitude}, long=${longitude}`);
     
     // Calculate Julian day
-    const julday = swisseph.swe_julday(
-      year,
-      month,
-      day,
-      hour + minute / 60,
-      swisseph.SE_GREG_CAL
-    );
+    const julDay = getJulianDay(birthDate, birthTime, longitude);
+    console.log(`Julian day: ${julDay}`);
     
-    // Set geographic location
-    const geopos = [coords.longitude, coords.latitude, 0];
+    // Calculate planetary positions
+    const planets = calculatePlanetaryPositions(julDay);
     
-    // Initialize object to store planetary positions
-    const planetPositions: { [key: number]: number } = {};
-    const planets: PlanetaryPosition[] = [];
+    // Calculate houses
+    const houses = calculateHouses(julDay, latitude, longitude);
     
-    // Calculate positions for all planets
-    for (let i = 0; i <= 9; i++) {
-      try {
-        // Calculate planet position
-        const result = swisseph.swe_calc_ut(julday, i, swisseph.SEFLG_SPEED);
-        
-        if (result.status === swisseph.OK) {
-          const longitude = result.longitude % 360;
-          planetPositions[i] = longitude;
-          
-          // Get sign and degree
-          const sign = getSignFromLongitude(longitude);
-          const degree = longitude % 30;
-          
-          // Check if retrograde
-          const retrograde = result.speedLong < 0;
-          
-          planets.push({
-            planet: arabicPlanetNames[i as keyof typeof arabicPlanetNames],
-            sign,
-            degree: parseFloat(degree.toFixed(1)),
-            retrograde,
-          });
-        }
-      } catch (error) {
-        console.error(`Error calculating position for planet ${i}:`, error);
-      }
-    }
-    
-    // Calculate house cusps and ascendant
-    const houses = [];
-    let ascendant = "";
-    
-    try {
-      // Use Placidus house system
-      const houseResult = swisseph.swe_houses(
-        julday,
-        geopos[1],
-        geopos[0],
-        'P'
-      );
-      
-      // Get ascendant and convert to sign
-      const ascLongitude = houseResult.ascendant % 360;
-      ascendant = getSignFromLongitude(ascLongitude);
-      
-      // Get house cusps
-      for (let i = 1; i <= 12; i++) {
-        const cuspLongitude = houseResult.house[i - 1] % 360;
-        const sign = getSignFromLongitude(cuspLongitude);
-        houses.push({ house: i, sign });
-      }
-    } catch (error) {
-      console.error("Error calculating houses:", error);
-      
-      // Fallback to generic houses based on ascendant
-      const signIndices = {
-        "الحمل": 0, "الثور": 1, "الجوزاء": 2, "السرطان": 3,
-        "الأسد": 4, "العذراء": 5, "الميزان": 6, "العقرب": 7,
-        "القوس": 8, "الجدي": 9, "الدلو": 10, "الحوت": 11
-      };
-      
-      // Use the Sun sign as ascendant in fallback
-      const sunPosition = planets.find(p => p.planet === arabicPlanetNames[0]);
-      ascendant = sunPosition ? sunPosition.sign : arabicSigns[0];
-      
-      const ascIndex = signIndices[ascendant as keyof typeof signIndices];
-      
-      for (let i = 1; i <= 12; i++) {
-        const signIndex = (ascIndex + i - 1) % 12;
-        houses.push({ house: i, sign: arabicSigns[signIndex] });
-      }
-    }
+    // Calculate ascendant
+    const ascendant = calculateAscendant(julDay, latitude, longitude);
     
     // Calculate aspects
-    const aspects = calculateAspects(planetPositions);
+    const aspects = calculateAspects(planets);
     
-    // Construct the chart data
-    const chartData: AstrologyChart = {
+    // Create the complete chart
+    const chart = {
       planets,
-      ascendant,
       houses,
+      ascendant,
       aspects,
+      julDay // Add julDay for use in horoscope generation
     };
     
-    // Store the chart data in Supabase
-    await saveUserChart(
-      userId, 
-      birthDate, 
-      birthTime, 
-      birthPlace, 
-      chartData, 
-      coords.latitude, 
-      coords.longitude
-    );
-    
-    return chartData;
+    return chart;
   } catch (error) {
-    console.error("Failed to calculate natal chart:", error);
+    console.error("Error calculating birth chart:", error);
     
-    // Fall back to placeholder chart in case of errors
-    const placeholderChart = getPlaceholderChart();
-    
-    // Store the placeholder chart
-    await saveUserChart(userId, birthDate, birthTime, birthPlace, placeholderChart);
-    
-    return placeholderChart;
+    // Return placeholder data in case of error
+    return {
+      planets: [
+        { planet: "الشمس", sign: "الحمل", degree: 15.5, retrograde: false },
+        { planet: "القمر", sign: "السرطان", degree: 24.3, retrograde: false },
+        { planet: "عطارد", sign: "الحوت", degree: 3.7, retrograde: true }
+      ],
+      houses: [
+        { house: 1, sign: "الدلو" },
+        { house: 2, sign: "الحوت" },
+        { house: 3, sign: "الحمل" }
+      ],
+      ascendant: "الدلو",
+      aspects: [
+        { planet1: "الشمس", planet2: "المريخ", aspect: "تربيع", orb: 2.1 },
+        { planet1: "القمر", planet2: "الزهرة", aspect: "تثليث", orb: 1.5 }
+      ],
+      julDay: 2459000.5 // placeholder Julian day
+    };
   }
 };
 
-// Provide a placeholder chart for fallback
-function getPlaceholderChart(): AstrologyChart {
-  return {
-    planets: [
-      { planet: "الشمس", sign: "الحمل", degree: 15, retrograde: false },
-      { planet: "القمر", sign: "السرطان", degree: 3, retrograde: false },
-      { planet: "عطارد", sign: "الحوت", degree: 28, retrograde: true },
-      { planet: "الزهرة", sign: "الثور", degree: 10, retrograde: false },
-      { planet: "المريخ", sign: "الجوزاء", degree: 22, retrograde: false },
-      { planet: "المشتري", sign: "الأسد", degree: 5, retrograde: false },
-      { planet: "زحل", sign: "الميزان", degree: 17, retrograde: true },
-      { planet: "أورانوس", sign: "الحمل", degree: 12, retrograde: false },
-      { planet: "نبتون", sign: "الحوت", degree: 25, retrograde: false },
-      { planet: "بلوتو", sign: "الجدي", degree: 28, retrograde: false },
-    ],
-    ascendant: "الميزان",
-    houses: [
-      { house: 1, sign: "الميزان" },
-      { house: 2, sign: "العقرب" },
-      { house: 3, sign: "القوس" },
-      { house: 4, sign: "الجدي" },
-      { house: 5, sign: "الدلو" },
-      { house: 6, sign: "الحوت" },
-      { house: 7, sign: "الحمل" },
-      { house: 8, sign: "الثور" },
-      { house: 9, sign: "الجوزاء" },
-      { house: 10, sign: "السرطان" },
-      { house: 11, sign: "الأسد" },
-      { house: 12, sign: "العذراء" },
-    ],
-    aspects: [
-      { planet1: "الشمس", planet2: "القمر", aspect: "تثليث", orb: 1.2 },
-      { planet1: "الشمس", planet2: "المريخ", aspect: "تسديس", orb: 2.5 },
-      { planet1: "القمر", planet2: "الزهرة", aspect: "تربيع", orb: 0.8 },
-      { planet1: "عطارد", planet2: "المشتري", aspect: "مقارنة", orb: 3.1 },
-    ]
-  };
-}
-
-// Generate a horoscope interpretation based on Swiss Ephemeris data
+// Generate horoscope from ephemeris data
 export const generateHoroscopeFromEphemeris = async (
   userId: string,
-  chart: AstrologyChart,
+  chart: any,
   type: HoroscopeType,
-  language: string = "ar"
+  dialect: Dialect
 ): Promise<HoroscopeResponse> => {
-  // Check if we have a recent prediction for this type
-  const { data: existingHoroscope } = await getLatestHoroscope(userId, type);
-  
-  if (existingHoroscope) {
+  try {
+    console.log(`Generating ${type} horoscope with ${dialect} dialect`);
+
+    // Get some basic planet positions from chart
+    const sun = chart.planets.find(p => p.planet === "الشمس");
+    const moon = chart.planets.find(p => p.planet === "القمر");
+    const mercury = chart.planets.find(p => p.planet === "عطارد");
+    const jupiter = chart.planets.find(p => p.planet === "المشتري");
+    const saturn = chart.planets.find(p => p.planet === "زحل");
+    const mars = chart.planets.find(p => p.planet === "المريخ");
+    const venus = chart.planets.find(p => p.planet === "الزهرة");
+    const julDay = chart.julDay || 2459000.5; // use provided julDay or fallback
+    
+    // Logic for creating horoscope content based on type and planets
+    let content = "";
+    
+    const titles = {
+      daily: "توقعات اليوم",
+      love: "توقعات الحب والعلاقات",
+      career: "توقعات العمل والمهنة",
+      health: "توقعات الصحة والعافية"
+    };
+    
+    // Generate dynamic content based on planet positions and chart
+    if (type === "daily") {
+      const sunInFire = ["الحمل", "الأسد", "القوس"].includes(sun?.sign || "");
+      const moonInWater = ["السرطان", "العقرب", "الحوت"].includes(moon?.sign || "");
+      
+      if (sunInFire) {
+        content = "طاقتك مرتفعة اليوم، يمكنك إنجاز الكثير من المهام. استغل هذه الطاقة في تحقيق أهدافك.";
+      } else if (moonInWater) {
+        content = "أنت أكثر حساسية للمشاعر اليوم. خذ وقتًا للتأمل والاسترخاء، واهتم بصحتك النفسية.";
+      } else if (mercury?.retrograde) {
+        content = "قد تواجه بعض سوء التفاهم في التواصل. تأكد من التحقق من المعلومات مرتين قبل اتخاذ القرارات.";
+      } else {
+        content = "يوم متوازن، مناسب للقيام بالأنشطة الاعتيادية. يمكنك التركيز على أهدافك بشكل جيد.";
+      }
+    } else if (type === "love") {
+      const venusInLove = ["الميزان", "الثور"].includes(venus?.sign || "");
+      
+      if (venusInLove) {
+        content = "العلاقات العاطفية مزدهرة اليوم. إنه وقت مثالي للتعبير عن مشاعرك وتعميق الروابط مع شريك حياتك.";
+      } else if (mars?.retrograde) {
+        content = "قد تشعر بالتردد في أمور القلب. خذ وقتك ولا تتسرع في اتخاذ قرارات عاطفية مهمة.";
+      } else {
+        content = "فترة مناسبة للتعارف والتواصل العاطفي. كن منفتحًا على تجارب جديدة في حياتك العاطفية.";
+      }
+    } else if (type === "career") {
+      const jupiterPositive = chart.aspects.some(a => 
+        a.planet1 === "المشتري" && ["تثليث", "تسديس"].includes(a.aspect)
+      );
+      
+      if (jupiterPositive) {
+        content = "فرص مهنية جيدة في الأفق. استعد للاستفادة من الفرص التي قد تأتي إليك، وكن جاهزًا للتقدم في مسارك المهني.";
+      } else if (saturn?.retrograde) {
+        content = "تواجه بعض العقبات في العمل. الصبر والمثابرة هما مفتاح النجاح في هذه المرحلة.";
+      } else {
+        content = "ركز على تحسين مهاراتك وتوسيع شبكة علاقاتك المهنية. قد تأتي فرص جديدة من مصادر غير متوقعة.";
+      }
+    } else if (type === "health") {
+      const moonPhase = Math.floor((julDay % 29.53) / 29.53 * 8);
+      
+      if (moonPhase < 2) {  // New moon
+        content = "وقت مناسب لبدء عادات صحية جديدة. ركز على بناء روتين صحي واتبعه بانتظام.";
+      } else if (moonPhase > 5) {  // Waning moon
+        content = "جسمك يحتاج إلى الراحة. خذ قسطًا كافيًا من النوم واهتم بالاسترخاء والتأمل.";
+      } else {
+        content = "توازن بين النشاط البدني والراحة. تناول طعامًا صحيًا وحافظ على ترطيب جسمك.";
+      }
+    }
+    
+    // Randomize some elements to make it feel dynamic
+    const luckyNumbers = [3, 7, 9, 12, 21, 33];
+    const luckyStars = ["المشتري", "الزهرة", "الشمس", "عطارد", "القمر"];
+    const luckyColors = ["الأزرق", "الأخضر", "الذهبي", "الفضي", "الأرجواني"];
+    
     return {
-      title: existingHoroscope.type === "daily" ? "توقعات اليوم" : 
-             existingHoroscope.type === "love" ? "توقعات الحب" : 
-             existingHoroscope.type === "career" ? "توقعات المهنة" :
-             "توقعات الصحة",
-      content: existingHoroscope.content,
-      luckyNumber: existingHoroscope.lucky_number,
-      luckyStar: existingHoroscope.lucky_star,
-      luckyColor: existingHoroscope.lucky_color
+      title: titles[type],
+      content: content,
+      luckyNumber: luckyNumbers[Math.floor(Math.random() * luckyNumbers.length)],
+      luckyStar: luckyStars[Math.floor(Math.random() * luckyStars.length)],
+      luckyColor: luckyColors[Math.floor(Math.random() * luckyColors.length)]
+    };
+  } catch (error) {
+    console.error("Error generating horoscope from ephemeris:", error);
+    
+    // Return a fallback response
+    return {
+      title: type === "daily" ? "توقعات اليوم" : 
+             type === "love" ? "توقعات الحب والعلاقات" : 
+             type === "career" ? "توقعات العمل والمهنة" : "توقعات الصحة والعافية",
+      content: getDialectExample(dialect),
+      luckyNumber: 7,
+      luckyStar: "المشتري",
+      luckyColor: "الأزرق"
     };
   }
-  
-  // In a real implementation, this would use the chart data to generate
-  // a personalized interpretation based on current transits
-  // For now, we'll use the predefined responses
-  
-  // More detailed and comprehensive responses for different horoscope types
-  const detailedResponses = {
-    daily: "تشير الكواكب اليوم إلى فترة مميزة من النمو الشخصي. المشتري في وضع إيجابي يفتح أمامك أبواباً جديدة للتطور والتعلم. استفد من هذه الطاقة الإيجابية لتحقيق أهدافك. قد تلتقي بشخص له تأثير إيجابي على مستقبلك المهني. القمر في برجك يجعلك أكثر حساسية وإدراكاً للتفاصيل الصغيرة في محيطك. استمع لحدسك ولا تتردد في اتخاذ قرارات جريئة. الوقت مناسب للمبادرة والتحرك نحو أهدافك بثقة وإيجابية.",
-    love: "تؤثر الزهرة بشكل إيجابي على حياتك العاطفية هذه الفترة، مما يعزز جاذبيتك الشخصية ويجعلك أكثر انفتاحاً على التجارب الجديدة. إذا كنت في علاقة، ستشعر برغبة أكبر في التعبير عن مشاعرك وتعميق الروابط مع شريك حياتك. الوقت مناسب للمحادثات الصادقة التي تبني الثقة وتعزز التفاهم. إذا كنت أعزب، فإن هذه فترة مثالية للتعرف على أشخاص جدد، حيث تكون الطاقة الكونية داعمة للقاءات ذات معنى. استمع لقلبك واتبع حدسك في اختياراتك العاطفية.",
-    career: "المريخ في وضع قوي في خريطتك الفلكية يمنحك دفعة من الطاقة والحماس في مجال العمل. هناك فرصة لإثبات مهاراتك القيادية وتحقيق إنجازات ملموسة. الوقت مناسب للمبادرة بمشاريع جديدة أو طلب ترقية. زحل يدعم جهودك على المدى البعيد، مما يعني أن العمل الجاد الذي تقوم به الآن سيؤتي ثماره في المستقبل. لا تتردد في التعبير عن أفكارك المبتكرة، فالظروف الفلكية تدعم الإبداع والابتكار في بيئة العمل. توقع تطورات إيجابية في مسارك المهني إذا حافظت على التركيز والالتزام.",
-    health: "عطارد والشمس في تناغم يعززان صحتك النفسية والجسدية. هذه فترة مثالية للاهتمام بالتوازن بين العقل والجسد. مارس تقنيات الاسترخاء والتأمل للحفاظ على هدوئك النفسي. النظام الغذائي المتوازن سيكون له تأثير إيجابي ملحوظ على طاقتك وحيويتك. انتبه بشكل خاص للراحة الكافية، فالقمر في وضع يؤثر على أنماط نومك. تجنب الإجهاد المفرط واستمع لإشارات جسدك. الممارسة المنتظمة للرياضة ستساعد في تصريف الطاقة الزائدة وتعزيز المناعة. هذه فترة جيدة للبدء في عادات صحية جديدة ستستمر معك على المدى الطويل."
-  };
-  
-  const titles = {
-    daily: "توقعات اليوم",
-    love: "توقعات الحب والعلاقات",
-    career: "توقعات العمل والمهنة",
-    health: "توقعات الصحة والعافية"
-  };
-  
-  // Randomize some elements to make it feel dynamic
-  const luckyNumbers = [3, 7, 9, 12, 21, 33];
-  const luckyStars = ["المشتري", "الزهرة", "الشمس", "عطارد", "القمر"];
-  const luckyColors = ["الأزرق", "الأخضر", "الذهبي", "الفضي", "الأرجواني"];
-  
-  const content = detailedResponses[type];
-  const luckyNumber = luckyNumbers[Math.floor(Math.random() * luckyNumbers.length)];
-  const luckyStar = luckyStars[Math.floor(Math.random() * luckyStars.length)];
-  const luckyColor = luckyColors[Math.floor(Math.random() * luckyColors.length)];
-  
-  // Calculate valid until based on horoscope type
-  const now = new Date();
-  let validUntil = new Date();
-  if (type === 'daily') {
-    validUntil.setDate(now.getDate() + 1); // Valid for 1 day
-  } else {
-    validUntil.setDate(now.getDate() + 7); // Valid for 1 week
-  }
-  
-  // Save to database
-  const chartId = userId; // Simplified for now
-  await saveHoroscopePrediction(
-    userId, 
-    chartId, 
-    type, 
-    content, 
-    luckyNumber, 
-    luckyStar, 
-    luckyColor, 
-    validUntil.toISOString()
-  );
-  
-  return {
-    title: titles[type],
-    content,
-    luckyNumber,
-    luckyStar,
-    luckyColor
-  };
 };
 
-// Arabic zodiac sign determiner
+// Get zodiac sign from birth date
 export const getZodiacSign = (birthDate: string): string => {
   const date = new Date(birthDate);
   const day = date.getDate();
@@ -408,10 +392,11 @@ export const getZodiacSign = (birthDate: string): string => {
   if ((month === 11 && day >= 22) || (month === 12 && day <= 21)) return "القوس";
   if ((month === 12 && day >= 22) || (month === 1 && day <= 19)) return "الجدي";
   if ((month === 1 && day >= 20) || (month === 2 && day <= 18)) return "الدلو";
-  return "الحوت"; // Pisces (Feb 19 - Mar 20)
+  return "الحوت"; // Feb 19 - Mar 20
 };
 
-export const getZodiacEmoji = (sign: string): string => {
+// Get emoji for zodiac sign
+export const getZodiacEmoji = (zodiacSign: string): string => {
   const emojis: Record<string, string> = {
     "الحمل": "♈",
     "الثور": "♉",
@@ -427,5 +412,5 @@ export const getZodiacEmoji = (sign: string): string => {
     "الحوت": "♓"
   };
   
-  return emojis[sign] || "✨";
+  return emojis[zodiacSign] || "✨";
 };
