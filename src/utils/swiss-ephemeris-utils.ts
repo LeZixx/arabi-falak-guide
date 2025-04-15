@@ -3,8 +3,14 @@ import swisseph from "swisseph";
 import { HoroscopeResponse, HoroscopeType, Dialect } from "@/types";
 import { getDialectExample } from "./dialect-utils";
 
-// Initialize Swiss Ephemeris
-swisseph.swe_set_ephe_path(null);
+// Handle the __dirname issue by setting ephemeris path to null or a web-compatible path
+try {
+  // In browser environments, we need to set the ephemeris path to null
+  // This tells swisseph to use its internal algorithms without file access
+  swisseph.swe_set_ephe_path(null);
+} catch (error) {
+  console.error("Error initializing Swiss Ephemeris:", error);
+}
 
 // Zodiac signs in Arabic
 const zodiacSigns = [
@@ -96,11 +102,13 @@ function calculatePlanetaryPositions(julDay: number) {
         const longitude = result.longitude;
         const signIndex = Math.floor(longitude / 30);
         const degree = longitude % 30;
-        // In newer versions, it's longitudeSpeed
-        const retrograde = result.longitudeSpeed < 0 || ('speedLong' in result && result.speedLong < 0);
+        // Check if speed is available before comparing
+        const speed = 'longitudeSpeed' in result ? result.longitudeSpeed : 
+                      ('speedLong' in result ? result.speedLong : 0);
+        const retrograde = typeof speed === 'number' && speed < 0;
         
         planets.push({
-          planet: planetNames[i] || `Planet ${i}`,
+          planet: planetNames[i as keyof typeof planetNames] || `Planet ${i}`,
           sign: zodiacSigns[signIndex],
           degree: parseFloat(degree.toFixed(2)),
           retrograde: retrograde
@@ -119,24 +127,30 @@ function calculatePlanetaryPositions(julDay: number) {
 // Calculate house cusps
 function calculateHouses(julDay: number, latitude: number, longitude: number) {
   const houses = [];
-  const result = swisseph.swe_houses(
-    julDay,
-    latitude,
-    longitude,
-    'P'  // Placidus house system
-  );
-  
-  if (result && 'house' in result) {
-    for (let i = 1; i <= 12; i++) {
-      const longitude = result.house[i - 1];
-      const signIndex = Math.floor(longitude / 30);
-      houses.push({
-        house: i,
-        sign: zodiacSigns[signIndex]
-      });
+  try {
+    const result = swisseph.swe_houses(
+      julDay,
+      latitude,
+      longitude,
+      'P'  // Placidus house system
+    );
+    
+    if (result && 'house' in result) {
+      for (let i = 1; i <= 12; i++) {
+        const longitude = result.house[i - 1];
+        const signIndex = Math.floor(longitude / 30);
+        houses.push({
+          house: i,
+          sign: zodiacSigns[signIndex]
+        });
+      }
+    } else {
+      console.error("Error calculating houses:", result);
     }
-  } else {
-    console.error("Error calculating houses:", result);
+  } catch (error) {
+    console.error("Error calculating houses:", error);
+    // Return empty array in case of error
+    return [];
   }
   
   return houses;
@@ -144,17 +158,22 @@ function calculateHouses(julDay: number, latitude: number, longitude: number) {
 
 // Calculate the ascendant
 function calculateAscendant(julDay: number, latitude: number, longitude: number) {
-  const result = swisseph.swe_houses(
-    julDay,
-    latitude,
-    longitude,
-    'P'  // Placidus house system
-  );
-  
-  if (result && 'ascendant' in result) {
-    const ascLongitude = result.ascendant;
-    const signIndex = Math.floor(ascLongitude / 30);
-    return zodiacSigns[signIndex];
+  try {
+    const result = swisseph.swe_houses(
+      julDay,
+      latitude,
+      longitude,
+      'P'  // Placidus house system
+    );
+    
+    if (result && 'ascendant' in result) {
+      const ascLongitude = result.ascendant;
+      const signIndex = Math.floor(ascLongitude / 30);
+      return zodiacSigns[signIndex];
+    }
+  } catch (error) {
+    console.error("Error calculating ascendant:", error);
+    return "Unknown";
   }
   
   return "Unknown";
@@ -192,7 +211,7 @@ function calculateAspects(planets) {
           aspects.push({
             planet1: planet1.planet,
             planet2: planet2.planet,
-            aspect: aspectDef.aspect,
+            aspect: aspectDef.name,  // Use the name property as the aspect value
             orb: parseFloat(orb.toFixed(2))
           });
           break;  // Only count the closest aspect
