@@ -18,7 +18,7 @@ export const generateHoroscope = async (
   dialect: Dialect
 ): Promise<HoroscopeResponse> => {
   try {
-    // Calculate natal chart using Swiss Ephemeris via our local implementation
+    // Calculate natal chart - this will be calling your Google Cloud API
     const chart = await calculateNatalChart(userId, birthDate, birthTime, birthPlace);
     
     // Generate personalized horoscope from chart data
@@ -58,5 +58,5 @@ export const generateHoroscope = async (
   }
 };
 
-// Re-export functions from swiss-ephemeris-utils for convenience
+// Re-export functions for convenience
 export { getZodiacSign, getZodiacEmoji };
