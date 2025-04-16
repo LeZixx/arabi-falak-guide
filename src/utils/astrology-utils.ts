@@ -7,6 +7,7 @@ import {
   getZodiacSign, 
   getZodiacEmoji 
 } from "./swiss-ephemeris-utils";
+import { toast } from "sonner";
 
 // Generate a horoscope based on user data using Google Cloud API
 export const generateHoroscope = async (
@@ -21,10 +22,17 @@ export const generateHoroscope = async (
     // Calculate natal chart using Google Cloud API
     const chart = await calculateNatalChart(userId, birthDate, birthTime, birthPlace);
     
+    if (!chart || chart.error) {
+      console.error("Error in chart data:", chart?.error || "No chart data returned");
+      toast.error("Failed to generate accurate horoscope. Using example data instead.");
+      throw new Error(chart?.error || "Failed to get chart data");
+    }
+    
     // Generate personalized horoscope from chart data
     return await generateHoroscopeFromEphemeris(userId, chart, type, dialect);
   } catch (error) {
     console.error("Error generating horoscope:", error);
+    toast.error("Could not generate personalized horoscope");
     
     // Fallback to example responses if there's an error
     const exampleResponse = getDialectExample(dialect);
