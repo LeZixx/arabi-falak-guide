@@ -27,21 +27,24 @@ export const calculateNatalChart = async (
   console.log(`Fetching chart data from API for: ${birthDate} ${birthTime} ${birthPlace}`);
   
   try {
-    // Convert birthDate to the format expected by the API (if needed)
-    const formattedBirthDate = formatDateForAPI(birthDate);
+    // Get coordinates from the birth place
+    const coordinates = await getLocationCoordinates(birthPlace);
     
-    // Convert birthPlace to latitude and longitude (or use as is if your API accepts city names)
-    const location = await getLocationCoordinates(birthPlace);
+    if (!coordinates) {
+      console.error("Could not get coordinates for location:", birthPlace);
+      throw new Error(`Could not get coordinates for location: ${birthPlace}`);
+    }
     
-    // Prepare request payload with all required parameters
+    // Format date and time according to API requirements
+    const formattedDate = formatDateForAPI(birthDate);
+    const formattedTime = formatTimeForAPI(birthTime);
+    
+    // Prepare request payload with the exact format required by the API
     const payload = {
-      userId,
-      birthDate: formattedBirthDate,
-      birthTime,
-      birthPlace,
-      // Add additional parameters that might be required by your API
-      latitude: location?.latitude,
-      longitude: location?.longitude
+      date: formattedDate,
+      time: formattedTime,
+      lat: coordinates.latitude,
+      lon: coordinates.longitude
     };
     
     console.log("Sending payload to API:", JSON.stringify(payload));
@@ -84,18 +87,48 @@ export const calculateNatalChart = async (
   }
 };
 
-// Helper function to format date for the API
+// Helper function to format date for the API (YYYY-MM-DD format)
 const formatDateForAPI = (dateString: string): string => {
-  // By default, return the date as is - modify if your API needs a different format
-  return dateString;
+  // The date from the form should already be in YYYY-MM-DD format
+  // Just ensuring it's properly formatted
+  const date = new Date(dateString);
+  return date.toISOString().split('T')[0]; // Returns YYYY-MM-DD
 };
 
-// Helper function to get coordinates from place name
-// You can implement this with a geocoding service if needed
+// Helper function to format time for the API (HH:mm format)
+const formatTimeForAPI = (timeString: string): string => {
+  // The time from the form should already be in HH:mm format for 24-hour time
+  // Just return it as is, or format it if needed
+  return timeString;
+};
+
+// Helper function to get coordinates from place name using a mock geocoding function
+// In a real implementation, you would use a geocoding service API
 const getLocationCoordinates = async (placeName: string): Promise<{latitude: number, longitude: number} | null> => {
-  // This is a placeholder - in a real implementation you would use a geocoding service
-  // For now, return null which tells our code to just use the place name as provided
-  return null;
+  // Simple mock geocoding database for common cities
+  const geocodeDB: Record<string, {latitude: number, longitude: number}> = {
+    "القاهرة": { latitude: 30.0444, longitude: 31.2357 },
+    "بيروت": { latitude: 33.8886, longitude: 35.4955 },
+    "دبي": { latitude: 25.2048, longitude: 55.2708 },
+    "الرياض": { latitude: 24.7136, longitude: 46.6753 },
+    "عمان": { latitude: 31.9454, longitude: 35.9284 },
+    "بغداد": { latitude: 33.3152, longitude: 44.3661 },
+    "دمشق": { latitude: 33.5138, longitude: 36.2765 },
+    "الجزائر": { latitude: 36.7372, longitude: 3.0864 },
+    "طرابلس": { latitude: 32.8872, longitude: 13.1913 },
+    "الخرطوم": { latitude: 15.5007, longitude: 32.5599 }
+  };
+  
+  // Check if we have coordinates for the place
+  for (const city in geocodeDB) {
+    if (placeName.includes(city)) {
+      return geocodeDB[city];
+    }
+  }
+  
+  // Default coordinates for unknown places (Cairo, Egypt as default)
+  console.log("Using default coordinates for unknown location:", placeName);
+  return { latitude: 30.0444, longitude: 31.2357 };
 };
 
 // Generate placeholder chart data for fallback
