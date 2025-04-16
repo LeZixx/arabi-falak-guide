@@ -63,20 +63,24 @@ export const calculateNatalChart = async (
     console.log("API response:", responseText);
     
     // Parse the response if it's valid JSON
-    let chartData;
+    let apiData;
     try {
-      chartData = JSON.parse(responseText);
+      apiData = JSON.parse(responseText);
     } catch (e) {
       console.error("Failed to parse API response as JSON:", e);
       throw new Error("Invalid API response format");
     }
     
     if (!response.ok) {
-      throw new Error(`API error: ${response.status}. Message: ${chartData.error || 'Unknown error'}`);
+      throw new Error(`API error: ${response.status}. Message: ${apiData.error || 'Unknown error'}`);
     }
     
-    // Return the chart data
-    return chartData;
+    // Transform the API response to the expected format
+    const transformedData = transformApiResponse(apiData);
+    console.log("Transformed data:", transformedData);
+    
+    // Return the transformed chart data
+    return transformedData;
     
   } catch (error) {
     console.error("Error fetching natal chart:", error);
@@ -85,6 +89,94 @@ export const calculateNatalChart = async (
     // Return placeholder data in case of error
     return generatePlaceholderChartData();
   }
+};
+
+// Transform API response to expected format
+const transformApiResponse = (apiData: any) => {
+  // Extract houses data
+  const houses = apiData.houses.map((house: any) => {
+    const houseNumber = house.house;
+    // Convert degree to zodiac sign (each sign is 30 degrees)
+    const degree = parseFloat(house.degree);
+    const signIndex = Math.floor(degree / 30) % 12;
+    return {
+      house: houseNumber,
+      sign: zodiacSigns[signIndex]
+    };
+  });
+  
+  // Extract planets data and convert to array format
+  const planetKeys = Object.keys(apiData.planets);
+  const planets = planetKeys.map(planetKey => {
+    const degree = parseFloat(apiData.planets[planetKey]);
+    const signIndex = Math.floor(degree / 30) % 12;
+    // Check if planet is retrograde (simplified logic - in real astrology this would be more complex)
+    // For demo purposes, we'll consider some planets retrograde based on degree
+    const retrograde = (degree % 10) < 3; // Arbitrary condition for demonstration
+    
+    return {
+      planet: translatePlanetName(planetKey),
+      sign: zodiacSigns[signIndex],
+      degree: degree % 30, // Position within the sign (0-29.99)
+      retrograde
+    };
+  });
+  
+  // Calculate ascendant sign
+  const ascDegree = parseFloat(apiData.ascendant);
+  const ascSignIndex = Math.floor(ascDegree / 30) % 12;
+  const ascendant = zodiacSigns[ascSignIndex];
+  
+  // Generate some aspects between planets (simplified)
+  const aspects = generateSimpleAspects(planetKeys, apiData.planets);
+  
+  return {
+    planets,
+    houses,
+    ascendant,
+    aspects
+  };
+};
+
+// Helper function to translate planet names to Arabic
+const translatePlanetName = (englishName: string): string => {
+  const planetNameMap: Record<string, string> = {
+    "Sun": "الشمس",
+    "Moon": "القمر",
+    "Mercury": "عطارد",
+    "Venus": "الزهرة",
+    "Mars": "المريخ",
+    "Jupiter": "المشتري",
+    "Saturn": "زحل",
+    "Uranus": "أورانوس",
+    "Neptune": "نبتون",
+    "Pluto": "بلوتو"
+  };
+  
+  return planetNameMap[englishName] || englishName;
+};
+
+// Generate simple aspects between planets
+const generateSimpleAspects = (planetKeys: string[], planetsData: Record<string, string>) => {
+  const aspects = [];
+  const aspectTypes = ["تربيع", "تثليث", "مقابلة"];
+  
+  // Generate a few sample aspects
+  for (let i = 0; i < Math.min(3, planetKeys.length - 1); i++) {
+    const planet1 = translatePlanetName(planetKeys[i]);
+    const planet2 = translatePlanetName(planetKeys[i + 1]);
+    const aspectType = aspectTypes[i % aspectTypes.length];
+    const orb = parseFloat((Math.random() * 3).toFixed(1));
+    
+    aspects.push({
+      planet1,
+      planet2,
+      aspect: aspectType,
+      orb
+    });
+  }
+  
+  return aspects;
 };
 
 // Helper function to format date for the API (YYYY-MM-DD format)
