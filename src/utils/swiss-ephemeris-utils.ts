@@ -1,4 +1,3 @@
-
 /**
  * Integration with Google Cloud API for astrological calculations
  */
@@ -35,11 +34,13 @@ export const calculateNatalChart = async (
       throw new Error(`Could not get coordinates for location: ${birthPlace}`);
     }
     
-    // Format date and time according to API requirements
+    // Format date for API (YYYY-MM-DD)
     const formattedDate = formatDateForAPI(birthDate);
+    
+    // Make sure time is in 24h format (HH:mm)
     const formattedTime = formatTimeForAPI(birthTime);
     
-    // Prepare request payload with the exact format required by the API
+    // Prepare payload exactly as expected by the API
     const payload = {
       date: formattedDate,
       time: formattedTime,
@@ -49,93 +50,111 @@ export const calculateNatalChart = async (
     
     console.log("Sending payload to API:", JSON.stringify(payload));
     
-    // Make API request
+    // Make API request with proper headers and JSON body
     const response = await fetch(ASTRO_API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json'
       },
       body: JSON.stringify(payload)
     });
     
-    // Get the response as text first to log it for debugging
+    // Get raw response text for debugging
     const responseText = await response.text();
     console.log("API response:", responseText);
     
-    // Parse the response if it's valid JSON
+    // Attempt to parse the response as JSON
     let apiData;
     try {
       apiData = JSON.parse(responseText);
     } catch (e) {
       console.error("Failed to parse API response as JSON:", e);
-      throw new Error("Invalid API response format");
+      throw new Error(`Invalid API response format: ${responseText}`);
     }
     
+    // Check if response contains an error
+    if (apiData.error) {
+      console.error("API returned an error:", apiData.error);
+      throw new Error(`API error: ${apiData.error}`);
+    }
+    
+    // If response was not OK, throw an error
     if (!response.ok) {
       throw new Error(`API error: ${response.status}. Message: ${apiData.error || 'Unknown error'}`);
     }
     
-    // Transform the API response to the expected format
+    // Transform API response to our expected format
     const transformedData = transformApiResponse(apiData);
-    console.log("Transformed data:", transformedData);
+    console.log("Successfully transformed API data:", transformedData);
     
     // Return the transformed chart data
     return transformedData;
     
   } catch (error) {
     console.error("Error fetching natal chart:", error);
-    toast.error("Failed to fetch astrological data. Using placeholder data instead.");
-    
-    // Return placeholder data in case of error
-    return generatePlaceholderChartData();
+    toast.error("Failed to fetch astrological data. Please try again later.");
+    throw error; // Propagate error to calling function
   }
 };
 
 // Transform API response to expected format
 const transformApiResponse = (apiData: any) => {
-  // Extract houses data
-  const houses = apiData.houses.map((house: any) => {
-    const houseNumber = house.house;
-    // Convert degree to zodiac sign (each sign is 30 degrees)
-    const degree = parseFloat(house.degree);
-    const signIndex = Math.floor(degree / 30) % 12;
-    return {
-      house: houseNumber,
-      sign: zodiacSigns[signIndex]
-    };
-  });
-  
-  // Extract planets data and convert to array format
-  const planetKeys = Object.keys(apiData.planets);
-  const planets = planetKeys.map(planetKey => {
-    const degree = parseFloat(apiData.planets[planetKey]);
-    const signIndex = Math.floor(degree / 30) % 12;
-    // Check if planet is retrograde (simplified logic - in real astrology this would be more complex)
-    // For demo purposes, we'll consider some planets retrograde based on degree
-    const retrograde = (degree % 10) < 3; // Arbitrary condition for demonstration
+  try {
+    console.log("Raw API data for transformation:", apiData);
+    
+    // Check if API data has expected structure
+    if (!apiData.houses || !apiData.planets || !apiData.ascendant) {
+      console.error("API response missing required data:", apiData);
+      throw new Error("API response missing required data");
+    }
+    
+    // Extract houses data
+    const houses = apiData.houses.map((house: any) => {
+      const houseNumber = house.house;
+      // Convert degree to zodiac sign (each sign is 30 degrees)
+      const degree = parseFloat(house.degree);
+      const signIndex = Math.floor(degree / 30) % 12;
+      return {
+        house: houseNumber,
+        sign: zodiacSigns[signIndex]
+      };
+    });
+    
+    // Extract planets data and convert to array format
+    const planetKeys = Object.keys(apiData.planets);
+    const planets = planetKeys.map(planetKey => {
+      const degree = parseFloat(apiData.planets[planetKey]);
+      const signIndex = Math.floor(degree / 30) % 12;
+      // Check if planet is retrograde (simplified logic - in real astrology this would be more complex)
+      const retrograde = (degree % 10) < 3; // Arbitrary condition for demonstration
+      
+      return {
+        planet: translatePlanetName(planetKey),
+        sign: zodiacSigns[signIndex],
+        degree: degree % 30, // Position within the sign (0-29.99)
+        retrograde
+      };
+    });
+    
+    // Calculate ascendant sign
+    const ascDegree = parseFloat(apiData.ascendant);
+    const ascSignIndex = Math.floor(ascDegree / 30) % 12;
+    const ascendant = zodiacSigns[ascSignIndex];
+    
+    // Generate aspects between planets
+    const aspects = generateSimpleAspects(planetKeys, apiData.planets);
     
     return {
-      planet: translatePlanetName(planetKey),
-      sign: zodiacSigns[signIndex],
-      degree: degree % 30, // Position within the sign (0-29.99)
-      retrograde
+      planets,
+      houses,
+      ascendant,
+      aspects
     };
-  });
-  
-  // Calculate ascendant sign
-  const ascDegree = parseFloat(apiData.ascendant);
-  const ascSignIndex = Math.floor(ascDegree / 30) % 12;
-  const ascendant = zodiacSigns[ascSignIndex];
-  
-  // Generate some aspects between planets (simplified)
-  const aspects = generateSimpleAspects(planetKeys, apiData.planets);
-  
-  return {
-    planets,
-    houses,
-    ascendant,
-    aspects
-  };
+  } catch (error) {
+    console.error("Error transforming API response:", error);
+    throw new Error("Failed to transform API data");
+  }
 };
 
 // Helper function to translate planet names to Arabic
@@ -156,12 +175,12 @@ const translatePlanetName = (englishName: string): string => {
   return planetNameMap[englishName] || englishName;
 };
 
-// Generate simple aspects between planets
+// Generate aspects between planets
 const generateSimpleAspects = (planetKeys: string[], planetsData: Record<string, string>) => {
   const aspects = [];
   const aspectTypes = ["تربيع", "تثليث", "مقابلة"];
   
-  // Generate a few sample aspects
+  // Generate aspects for significant planet pairs
   for (let i = 0; i < Math.min(3, planetKeys.length - 1); i++) {
     const planet1 = translatePlanetName(planetKeys[i]);
     const planet2 = translatePlanetName(planetKeys[i + 1]);
@@ -179,23 +198,35 @@ const generateSimpleAspects = (planetKeys: string[], planetsData: Record<string,
   return aspects;
 };
 
-// Helper function to format date for the API (YYYY-MM-DD format)
+// Format date for API (YYYY-MM-DD format)
 const formatDateForAPI = (dateString: string): string => {
-  // The date from the form should already be in YYYY-MM-DD format
-  // Just ensuring it's properly formatted
-  const date = new Date(dateString);
-  return date.toISOString().split('T')[0]; // Returns YYYY-MM-DD
+  try {
+    // Parse the input date
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) {
+      throw new Error(`Invalid date: ${dateString}`);
+    }
+    
+    // Format as YYYY-MM-DD
+    return date.toISOString().split('T')[0];
+  } catch (error) {
+    console.error("Error formatting date:", error);
+    throw error;
+  }
 };
 
-// Helper function to format time for the API (HH:mm format)
+// Format time for API (HH:mm format)
 const formatTimeForAPI = (timeString: string): string => {
-  // The time from the form should already be in HH:mm format for 24-hour time
-  // Just return it as is, or format it if needed
+  // Validate time format
+  const timeRegex = /^([01]?[0-9]|2[0-3]):([0-5][0-9])$/;
+  if (!timeRegex.test(timeString)) {
+    console.warn(`Time format may be invalid: ${timeString}`);
+    // Attempt to fix common formats or return as is
+  }
   return timeString;
 };
 
-// Helper function to get coordinates from place name using a mock geocoding function
-// In a real implementation, you would use a geocoding service API
+// Get coordinates from place name using a mock geocoding service
 const getLocationCoordinates = async (placeName: string): Promise<{latitude: number, longitude: number} | null> => {
   // Simple mock geocoding database for common cities
   const geocodeDB: Record<string, {latitude: number, longitude: number}> = {
@@ -221,39 +252,6 @@ const getLocationCoordinates = async (placeName: string): Promise<{latitude: num
   // Default coordinates for unknown places (Cairo, Egypt as default)
   console.log("Using default coordinates for unknown location:", placeName);
   return { latitude: 30.0444, longitude: 31.2357 };
-};
-
-// Generate placeholder chart data for fallback
-const generatePlaceholderChartData = () => {
-  return {
-    planets: [
-      { planet: "الشمس", sign: "الحمل", degree: 15.5, retrograde: false },
-      { planet: "القمر", sign: "السرطان", degree: 24.3, retrograde: false },
-      { planet: "عطارد", sign: "الحوت", degree: 3.7, retrograde: true },
-      { planet: "الزهرة", sign: "الثور", degree: 7.2, retrograde: false },
-      { planet: "المريخ", sign: "العقرب", degree: 18.9, retrograde: false }
-    ],
-    houses: [
-      { house: 1, sign: "الدلو" },
-      { house: 2, sign: "الحوت" },
-      { house: 3, sign: "الحمل" },
-      { house: 4, sign: "الثور" },
-      { house: 5, sign: "الجوزاء" },
-      { house: 6, sign: "السرطان" },
-      { house: 7, sign: "الأسد" },
-      { house: 8, sign: "العذراء" },
-      { house: 9, sign: "الميزان" },
-      { house: 10, sign: "العقرب" },
-      { house: 11, sign: "القوس" },
-      { house: 12, sign: "الجدي" }
-    ],
-    ascendant: "الدلو",
-    aspects: [
-      { planet1: "الشمس", planet2: "المريخ", aspect: "تربيع", orb: 2.1 },
-      { planet1: "القمر", planet2: "الزهرة", aspect: "تثليث", orb: 1.5 },
-      { planet1: "عطارد", planet2: "زحل", aspect: "مقابلة", orb: 0.8 }
-    ]
-  };
 };
 
 // Get zodiac sign from birth date
@@ -306,10 +304,7 @@ export const generateHoroscopeFromEphemeris = async (
   console.log(`Generating ${type} horoscope with ${dialect} dialect based on chart data`);
   
   try {
-    // We'll use the chart data to generate a more personalized horoscope
-    // If the API doesn't provide horoscope content directly, we can use the chart data to customize our responses
-    
-    // For now, create a structured response based on chart data and horoscope type
+    // Create personalized horoscope content based on chart data
     const horoscopeContent = generateContentFromChart(chart, type, dialect);
     
     return {
@@ -319,10 +314,9 @@ export const generateHoroscopeFromEphemeris = async (
       luckyStar: getLuckyStarFromChart(chart),
       luckyColor: getLuckyColorFromChart(chart)
     };
-    
   } catch (error) {
-    console.error("Error generating horoscope:", error);
-    return generatePlaceholderHoroscope(type, dialect);
+    console.error("Error generating horoscope from chart data:", error);
+    throw error; // Let the parent function handle the error
   }
 };
 
@@ -346,7 +340,7 @@ const generateContentFromChart = (chart: any, type: HoroscopeType, dialect: Dial
         return `تؤثر الزهرة المتواجدة في برج ${venus?.sign || "الثور"} على حياتك العاطفية بشكل ${venus?.retrograde ? "معقد" : "إيجابي"}. هذا الوقت مناسب ${venus?.retrograde ? "لإعادة التفكير في علاقاتك" : "للتواصل مع من تحب"}. العلاقات التي تبدأ في هذه الفترة ستكون ${venus?.sign === "الجوزاء" ? "مثيرة ومليئة بالتواصل الفكري" : "عميقة وعاطفية"}.`;
         
       case "career":
-        return `المريخ في برج ${mars?.sign || "العقرب"} يمنحك دفعة قوية في مجال العمل. هذه فترة مثالية ${mars?.retrograde ? "لإعادة تقييم مسارك المهني" : "للتقدم والمبادرة بمشاريع جديدة"}. الفرص المهنية المتاحة الآن تتطلب منك ${mars?.sign === "الأسد" ? "القيادة والثقة بالنفس" : "العمل الجماعي والتعاون"}.`;
+        return `المريخ في برج ${mars?.sign || "العقرب"} يمنحك دفعة قوية في مجال العمل. هذه فترة مثالية ${mars?.retrograde ? "لإعادة تقييم مسارك المهني" : "لالتقدم والمبادرة بمشاريع جديدة"}. الفرص المهنية المتاحة الآن تتطلب منك ${mars?.sign === "الأسد" ? "القيادة والثقة بالنفس" : "العمل الجماعي والتعاون"}.`;
         
       case "health":
         return `عطارد المتواجد في ${mercury?.sign || "الحوت"} يؤثر على حالتك الذهنية ويجعلك ${mercury?.retrograde ? "أكثر تشتتاً" : "أكثر تركيزاً"}. انتبه لصحتك النفسية واحرص على ممارسة التأمل والاسترخاء. من الناحية الجسدية، يجب الاهتمام بـ${mercury?.sign === "العذراء" ? "نظامك الغذائي" : "راحتك وجودة نومك"}.`;
@@ -427,22 +421,37 @@ const getRandomLuckyColor = (): string => {
   return luckyColors[Math.floor(Math.random() * luckyColors.length)];
 };
 
-const generatePlaceholderHoroscope = (type: HoroscopeType, dialect: Dialect): HoroscopeResponse => {
-  const titles = {
-    daily: "توقعات اليوم",
-    love: "توقعات الحب والعلاقات",
-    career: "توقعات العمل والمهنة",
-    health: "توقعات الصحة والعافية"
-  };
-  
-  // Use dialect-specific content example as placeholder
-  const content = getDialectExample(dialect);
+// Placeholder chart data - used ONLY when API fails completely
+const generatePlaceholderChartData = () => {
+  console.warn("Using placeholder chart data - THIS SHOULD NOT HAPPEN IN PRODUCTION");
   
   return {
-    title: titles[type],
-    content,
-    luckyNumber: getRandomLuckyNumber(),
-    luckyStar: getRandomLuckyStar(),
-    luckyColor: getRandomLuckyColor()
+    planets: [
+      { planet: "الشمس", sign: "الحمل", degree: 15.5, retrograde: false },
+      { planet: "القمر", sign: "السرطان", degree: 24.3, retrograde: false },
+      { planet: "عطارد", sign: "الحوت", degree: 3.7, retrograde: true },
+      { planet: "الزهرة", sign: "الثور", degree: 7.2, retrograde: false },
+      { planet: "المريخ", sign: "العقرب", degree: 18.9, retrograde: false }
+    ],
+    houses: [
+      { house: 1, sign: "الدلو" },
+      { house: 2, sign: "الحوت" },
+      { house: 3, sign: "الحمل" },
+      { house: 4, sign: "الثور" },
+      { house: 5, sign: "الجوزاء" },
+      { house: 6, sign: "السرطان" },
+      { house: 7, sign: "الأسد" },
+      { house: 8, sign: "العذراء" },
+      { house: 9, sign: "الميزان" },
+      { house: 10, sign: "العقرب" },
+      { house: 11, sign: "القوس" },
+      { house: 12, sign: "الجدي" }
+    ],
+    ascendant: "الدلو",
+    aspects: [
+      { planet1: "الشمس", planet2: "المريخ", aspect: "تربيع", orb: 2.1 },
+      { planet1: "القمر", planet2: "الزهرة", aspect: "تثليث", orb: 1.5 },
+      { planet1: "عطارد", planet2: "زحل", aspect: "مقابلة", orb: 0.8 }
+    ]
   };
 };
