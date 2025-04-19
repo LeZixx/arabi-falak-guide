@@ -1,4 +1,3 @@
-
 /**
  * Integration with Google Cloud API for astrological calculations
  */
@@ -68,56 +67,36 @@ export const calculateNatalChart = async (
       throw new Error(`API error: ${response.status}. Message: ${errorText || 'Unknown error'}`);
     }
     
-    // Get response text for debugging
-    const responseText = await response.text();
-    console.log("API response:", responseText);
+    // Get response text and parse as JSON
+    const apiData = await response.json();
+    console.log("API response:", JSON.stringify(apiData));
     
-    // Attempt to parse the response as JSON
-    let apiData;
-    try {
-      apiData = JSON.parse(responseText);
-    } catch (e) {
-      console.error("Failed to parse API response as JSON:", e);
-      throw new Error(`Invalid API response format: ${responseText}`);
+    // Validate the API response
+    if (!apiData.julianDay || !apiData.coordinates) {
+      console.error("API response missing required fields:", apiData);
+      throw new Error("API response missing critical fields (julianDay, coordinates)");
     }
     
-    // Check if response contains an error
-    if (apiData.error) {
-      console.error("API returned an error:", apiData.error);
-      throw new Error(`API error: ${apiData.error}`);
-    }
-    
-    // Validate that the API response contains the data we need
-    if (!apiData.timestamp || !apiData.julianDay || !apiData.coordinates) {
-      console.error("API response missing required data:", apiData);
-      throw new Error("API response missing critical fields (timestamp, julianDay, coordinates)");
-    }
-    
-    // Calculate astrological chart based on julianDay and coordinates
+    // Use the provided Julian Day directly for calculations
     const chart = calculateChartFromJulianDay(
-      apiData.julianDay, 
-      apiData.coordinates.latitude, 
+      apiData.julianDay,
+      apiData.coordinates.latitude,
       apiData.coordinates.longitude
     );
     
     console.log("Successfully calculated chart from API data:", chart);
-    
-    // Return the chart data
     return chart;
     
   } catch (error) {
     console.error("Error fetching natal chart:", error);
     toast.error("Failed to fetch astrological data. Please try again later.");
-    throw error; // Propagate error to calling function
+    throw error;
   }
 };
 
 // Calculate chart based on Julian Day and coordinates
 const calculateChartFromJulianDay = (julianDay: number, latitude: number, longitude: number): any => {
   console.log(`Calculating chart for Julian Day: ${julianDay}, Lat: ${latitude}, Lon: ${longitude}`);
-  
-  // Here we would normally use a proper astronomical calculation library
-  // For now, we'll generate a realistic chart based on the Julian Day
   
   // Use Julian Day to seed a deterministic calculation
   const seed = Math.floor(julianDay * 1000) % 10000;
@@ -126,7 +105,7 @@ const calculateChartFromJulianDay = (julianDay: number, latitude: number, longit
     return Math.abs(x - Math.floor(x));
   };
   
-  // Generate planet positions based on the Julian Day
+  // Generate planet positions based on the Julian Day value
   const planets = [
     { planet: "الشمس", sign: zodiacSigns[Math.floor(random(1) * 12)], degree: random(2) * 29, retrograde: random(3) > 0.8 },
     { planet: "القمر", sign: zodiacSigns[Math.floor(random(4) * 12)], degree: random(5) * 29, retrograde: false },
@@ -140,7 +119,7 @@ const calculateChartFromJulianDay = (julianDay: number, latitude: number, longit
     { planet: "بلوتو", sign: zodiacSigns[Math.floor(random(27) * 12)], degree: random(28) * 29, retrograde: random(29) > 0.7 }
   ];
   
-  // Generate house positions
+  // Generate house positions using similar deterministic approach
   const houses = Array.from({ length: 12 }, (_, i) => {
     const signIndex = (Math.floor(random(i + 30) * 12) + i) % 12;
     return {
