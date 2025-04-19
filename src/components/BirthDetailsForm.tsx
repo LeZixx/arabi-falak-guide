@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { DialogTitle } from "@/components/ui/dialog";
 import { updateUserBirthDetails } from "@/services/userStorage";
 import { DialogStepProps } from "@/types";
 
@@ -53,9 +54,9 @@ const BirthDetailsForm: React.FC<DialogStepProps> = ({ onNext }) => {
   
   return (
     <form onSubmit={handleSubmit} className="space-y-4 w-full max-w-md mx-auto text-right">
-      <h3 className="text-xl font-semibold text-center">
+      <DialogTitle className="text-center">
         📅 بيانات الميلاد ⏰
-      </h3>
+      </DialogTitle>
       
       <p className="text-center text-muted-foreground text-sm">
         لقراءة فلكية دقيقة، نحتاج إلى معلومات ميلادك الدقيقة
