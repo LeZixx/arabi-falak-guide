@@ -30,8 +30,12 @@ const BirthDetailsForm: React.FC<DialogStepProps> = ({ onNext }) => {
       newErrors.date = "يرجى إدخال تاريخ الميلاد";
     }
     
-    if (!birthTime) {
-      newErrors.time = "يرجى إدخال وقت الميلاد (مهم للقراءة الدقيقة)";
+    // Time is optional, but if provided, validate format
+    if (birthTime) {
+      const timeRegex = /^([01]?[0-9]|2[0-3]):([0-5][0-9])$/;
+      if (!timeRegex.test(birthTime)) {
+        newErrors.time = "صيغة الوقت غير صحيحة. الرجاء استخدام الصيغة HH:MM (مثال: 09:30)";
+      }
     }
     
     if (!birthPlace) {
@@ -74,8 +78,11 @@ const BirthDetailsForm: React.FC<DialogStepProps> = ({ onNext }) => {
       
       <div className="space-y-2">
         <Label htmlFor="birthTime" className="text-right block">
-          وقت الميلاد (بدقة 5 دقائق على الأقل)
+          وقت الميلاد (إذا كان معلوماً، يعطي نتائج أدق)
         </Label>
+        <p className="text-xs text-muted-foreground text-right">
+          إذا لم تكن تعرف وقت ميلادك، يمكنك ترك هذا الحقل فارغاً. سنفترض الساعة 12 ظهراً للتوقعات العامة.
+        </p>
         <Input
           id="birthTime"
           type="time"

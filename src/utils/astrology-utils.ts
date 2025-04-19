@@ -5,11 +5,12 @@ import {
   calculateNatalChart, 
   generateHoroscopeFromEphemeris, 
   getZodiacSign, 
-  getZodiacEmoji 
+  getZodiacEmoji,
+  generateBirthChartInterpretation 
 } from "./swiss-ephemeris-utils";
 import { toast } from "sonner";
 
-// Generate a horoscope based on user data using Google Cloud API
+// Generate a horoscope based on user data using AstroHabibi API
 export const generateHoroscope = async (
   userId: string,
   birthDate: string,
@@ -21,7 +22,7 @@ export const generateHoroscope = async (
   try {
     console.log(`Attempting to generate ${type} horoscope for user ${userId}`);
     
-    // Calculate natal chart using API, which uses the Julian Day returned by the backend
+    // Calculate natal chart using the updated API
     const chart = await calculateNatalChart(userId, birthDate, birthTime, birthPlace);
     
     // Verify the key positions in the chart match our expectations for the given birth details
@@ -53,6 +54,49 @@ export const generateHoroscope = async (
     // Return a generic response based on dialect when API fails
     return generateGenericHoroscope(type, dialect);
   }
+};
+
+// Generate a complete birth chart interpretation
+export const generateBirthChartAnalysis = async (
+  userId: string,
+  birthDate: string,
+  birthTime: string,
+  birthPlace: string
+): Promise<string> => {
+  try {
+    // Check if birth time is provided
+    const hasBirthTime = !!birthTime && birthTime.trim() !== "";
+    
+    // Calculate natal chart
+    const chart = await calculateNatalChart(userId, birthDate, birthTime || "12:00", birthPlace);
+    
+    // Generate interpretation using the comprehensive method
+    return generateBirthChartInterpretation(chart, hasBirthTime);
+    
+  } catch (error) {
+    console.error("Error in birth chart analysis generation:", error);
+    toast.error("Could not generate detailed birth chart analysis. Using generic information.");
+    
+    // Return a generic birth chart analysis
+    return generateGenericBirthChartAnalysis(birthDate);
+  }
+};
+
+// Generate a generic birth chart analysis when API fails
+const generateGenericBirthChartAnalysis = (birthDate: string): string => {
+  const zodiacSign = getZodiacSign(birthDate);
+  const zodiacEmoji = getZodiacEmoji(zodiacSign);
+  
+  return `✨ تحليل خريطتك الفلكية ✨\n\n` +
+    `🪐 نظرة عامة:\n` +
+    `برجك هو ${zodiacSign} ${zodiacEmoji}\n` +
+    `الشمس في برج ${zodiacSign} تعكس جوهر شخصيتك وقوتك الحيوية.\n\n` +
+    `لم نتمكن من الحصول على تفاصيل خريطتك الفلكية الكاملة في هذه اللحظة. يرجى المحاولة مرة أخرى لاحقًا للحصول على تحليل شامل ودقيق.\n\n` +
+    `يمكنك استخدام الأوامر التالية للحصول على توقعات مختلفة:\n` +
+    `🔮 /horoscope - قراءة يومية\n` +
+    `❤️ /love - توقعات الحب\n` +
+    `💼 /career - توقعات العمل\n` +
+    `🌿 /health - توقعات الصحة`;
 };
 
 // Generate a generic horoscope when API fails
