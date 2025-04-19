@@ -36,7 +36,7 @@ export const generateHoroscope = async (
     console.log(`VERIFICATION - Horoscope calculation using chart with JD: ${chart.julianDay}`);
     console.log(`VERIFICATION - Sun sign used in horoscope: ${sunData.sign}`);
     console.log(`VERIFICATION - Moon sign used in horoscope: ${moonData.sign}`);
-    console.log(`VERIFICATION - Ascendant used in horoscope: ${chart.ascendant?.sign}`);
+    console.log(`VERIFICATION - Ascendant used in horoscope: ${chart.ascendant.sign}`);
     
     // Generate personalized horoscope from chart data
     return await generateHoroscopeFromEphemeris(userId, chart, type, dialect);
@@ -146,3 +146,4 @@ const generateGenericHoroscope = (type: HoroscopeType, dialect: Dialect): Horosc
 
 // Re-export functions for convenience
 export { getZodiacSign, getZodiacEmoji };
+

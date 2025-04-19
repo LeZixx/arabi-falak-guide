@@ -1,3 +1,4 @@
+
 import { toast } from "sonner";
 import { User } from "@/types";
 
@@ -139,7 +140,7 @@ export const calculateNatalChart = async (
     console.log("full-chart API response:", JSON.stringify(fullChartData));
     
     // Process the full chart data
-    return processFullChartData(fullChartData, julianDay, birthTime);
+    return fullChartData;
     
   } catch (error) {
     console.error("Error fetching natal chart:", error);
@@ -147,65 +148,6 @@ export const calculateNatalChart = async (
     toast.error("Could not fetch your celestial data. Using generic chart data.");
     return generateFallbackChartData(birthDate, birthTime, birthPlace);
   }
-};
-
-// Process the raw chart data from API into a more usable format
-const processFullChartData = (fullChartData: any, julianDay: number, birthTime: string): any => {
-  try {
-    // Extract planets from the object format and convert to array format
-    const planetsArray = Object.entries(fullChartData.planets).map(([key, value]: [string, any]) => {
-      return {
-        planet: planetNames[key as keyof typeof planetNames] || key,
-        sign: getArabicZodiacSign(value.sign),
-        degree: value.degree,
-        retrograde: value.retrograde || false
-      };
-    });
-
-    // Extract houses data
-    const houses = fullChartData.houses.map((house: any) => {
-      return {
-        house: house.house,
-        sign: getArabicZodiacSign(house.sign),
-        degree: house.degree
-      };
-    });
-
-    return {
-      julianDay,
-      timestamp: new Date().toISOString(),
-      planets: planetsArray,
-      ascendant: getArabicZodiacSign(fullChartData.ascendant.sign),
-      ascendantDegree: fullChartData.ascendant.degree,
-      midheaven: getArabicZodiacSign(fullChartData.midheaven.sign),
-      midheavenDegree: fullChartData.midheaven.degree,
-      houses,
-      hasBirthTime: !!birthTime && birthTime.trim() !== ""
-    };
-  } catch (error) {
-    console.error("Error processing full chart data:", error);
-    throw new Error("Failed to process chart data from API");
-  }
-};
-
-// Convert English zodiac sign to Arabic
-const getArabicZodiacSign = (englishSign: string): string => {
-  const signMap: Record<string, string> = {
-    "Aries": "الحمل",
-    "Taurus": "الثور",
-    "Gemini": "الجوزاء", 
-    "Cancer": "السرطان",
-    "Leo": "الأسد", 
-    "Virgo": "العذراء",
-    "Libra": "الميزان", 
-    "Scorpio": "العقرب",
-    "Sagittarius": "القوس", 
-    "Capricorn": "الجدي",
-    "Aquarius": "الدلو", 
-    "Pisces": "الحوت"
-  };
-  
-  return signMap[englishSign] || englishSign;
 };
 
 // Generate a fallback chart when API fails
@@ -217,37 +159,35 @@ const generateFallbackChartData = (birthDate: string, birthTime: string, birthPl
   const seedPlace = birthPlace.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
   const combinedSeed = seedDate + seedTime + seedPlace;
   
-  const randomSign = () => zodiacSigns[Math.floor(random(Math.random() * 1000) * 12)];
-  
-  const planets = [
-    { planet: "الشمس", sign: getZodiacSign(birthDate), degree: random(combinedSeed) * 30, retrograde: false },
-    { planet: "القمر", sign: randomSign(), degree: random(combinedSeed + 1) * 30, retrograde: false },
-    { planet: "عطارد", sign: randomSign(), degree: random(combinedSeed + 2) * 30, retrograde: random(combinedSeed + 3) > 0.8 },
-    { planet: "الزهرة", sign: randomSign(), degree: random(combinedSeed + 4) * 30, retrograde: random(combinedSeed + 5) > 0.9 },
-    { planet: "المريخ", sign: randomSign(), degree: random(combinedSeed + 6) * 30, retrograde: random(combinedSeed + 7) > 0.85 },
-    { planet: "المشتري", sign: randomSign(), degree: random(combinedSeed + 8) * 30, retrograde: random(combinedSeed + 9) > 0.7 },
-    { planet: "زحل", sign: randomSign(), degree: random(combinedSeed + 10) * 30, retrograde: random(combinedSeed + 11) > 0.6 },
-    { planet: "أورانوس", sign: randomSign(), degree: random(combinedSeed + 12) * 30, retrograde: random(combinedSeed + 13) > 0.3 },
-    { planet: "نبتون", sign: randomSign(), degree: random(combinedSeed + 14) * 30, retrograde: random(combinedSeed + 15) > 0.4 },
-    { planet: "بلوتو", sign: randomSign(), degree: random(combinedSeed + 16) * 30, retrograde: random(combinedSeed + 17) > 0.5 }
-  ];
-  
-  const houses = Array.from({ length: 12 }, (_, i) => ({
-    house: i + 1,
-    sign: randomSign(),
-    degree: random(combinedSeed + 20 + i) * 30
-  }));
-  
+  // Generate a fallback structure that matches the API response
   return {
     julianDay: dateToJulianDay(birthDate, birthTime),
     timestamp: new Date().toISOString(),
-    planets,
-    ascendant: randomSign(),
-    ascendantDegree: random(combinedSeed + 18) * 30,
-    midheaven: randomSign(),
-    midheavenDegree: random(combinedSeed + 19) * 30,
-    houses,
-    hasBirthTime: !!birthTime && birthTime.trim() !== ""
+    ascendant: {
+      sign: getZodiacSign(birthDate),
+      degree: random(combinedSeed + 18) * 30
+    },
+    midheaven: {
+      sign: zodiacSigns[Math.floor(random(combinedSeed + 19) * 12)],
+      degree: random(combinedSeed + 19) * 30
+    },
+    planets: {
+      Sun: { sign: getZodiacSign(birthDate), degree: random(combinedSeed) * 30, retrograde: false },
+      Moon: { sign: zodiacSigns[Math.floor(random(combinedSeed + 1) * 12)], degree: random(combinedSeed + 1) * 30, retrograde: false },
+      Mercury: { sign: zodiacSigns[Math.floor(random(combinedSeed + 2) * 12)], degree: random(combinedSeed + 2) * 30, retrograde: random(combinedSeed + 3) > 0.8 },
+      Venus: { sign: zodiacSigns[Math.floor(random(combinedSeed + 4) * 12)], degree: random(combinedSeed + 4) * 30, retrograde: random(combinedSeed + 5) > 0.9 },
+      Mars: { sign: zodiacSigns[Math.floor(random(combinedSeed + 6) * 12)], degree: random(combinedSeed + 6) * 30, retrograde: random(combinedSeed + 7) > 0.85 },
+      Jupiter: { sign: zodiacSigns[Math.floor(random(combinedSeed + 8) * 12)], degree: random(combinedSeed + 8) * 30, retrograde: random(combinedSeed + 9) > 0.7 },
+      Saturn: { sign: zodiacSigns[Math.floor(random(combinedSeed + 10) * 12)], degree: random(combinedSeed + 10) * 30, retrograde: random(combinedSeed + 11) > 0.6 },
+      Uranus: { sign: zodiacSigns[Math.floor(random(combinedSeed + 12) * 12)], degree: random(combinedSeed + 12) * 30, retrograde: random(combinedSeed + 13) > 0.3 },
+      Neptune: { sign: zodiacSigns[Math.floor(random(combinedSeed + 14) * 12)], degree: random(combinedSeed + 14) * 30, retrograde: random(combinedSeed + 15) > 0.4 },
+      Pluto: { sign: zodiacSigns[Math.floor(random(combinedSeed + 16) * 12)], degree: random(combinedSeed + 16) * 30, retrograde: random(combinedSeed + 17) > 0.5 }
+    },
+    houses: Array.from({ length: 12 }, (_, i) => ({
+      house: i + 1,
+      sign: zodiacSigns[Math.floor(random(combinedSeed + 20 + i) * 12)],
+      degree: random(combinedSeed + 20 + i) * 30
+    }))
   };
 };
 
@@ -291,6 +231,26 @@ export const getZodiacEmoji = (zodiacSign: string): string => {
   return zodiacEmojis[zodiacSign] || "✨";
 };
 
+// Convert English zodiac sign to Arabic
+const getArabicZodiacSign = (englishSign: string): string => {
+  const signMap: Record<string, string> = {
+    "Aries": "الحمل",
+    "Taurus": "الثور",
+    "Gemini": "الجوزاء", 
+    "Cancer": "السرطان",
+    "Leo": "الأسد", 
+    "Virgo": "العذراء",
+    "Libra": "الميزان", 
+    "Scorpio": "العقرب",
+    "Sagittarius": "القوس", 
+    "Capricorn": "الجدي",
+    "Aquarius": "الدلو", 
+    "Pisces": "الحوت"
+  };
+  
+  return signMap[englishSign] || englishSign;
+};
+
 // Generate horoscope based on ephemeris data
 export const generateHoroscopeFromEphemeris = async (
   userId: string,
@@ -302,34 +262,38 @@ export const generateHoroscopeFromEphemeris = async (
   // For now, we'll return a simple horoscope based on the chart data
   
   try {
-    const sun = chart.planets.find((p: any) => p.planet === "الشمس");
-    const moon = chart.planets.find((p: any) => p.planet === "القمر");
-    const ascendant = chart.ascendant;
+    // Get planet positions from the chart, making sure we're extracting them correctly
+    const sunData = chart.planets.Sun || {};
+    const moonData = chart.planets.Moon || {};
     
     // Create basic content based on type and chart data
     let content = "";
     let title = "";
     
+    // Ensure we have the correct Arabic zodiac sign names
+    const sunSign = getArabicZodiacSign(sunData.sign);
+    const moonSign = getArabicZodiacSign(moonData.sign);
+    
     switch (type) {
       case "daily":
         title = "توقعات اليومية";
-        content = `كشخص من برج ${sun?.sign}، اليوم هو يوم مناسب للتفكير في أهدافك المستقبلية. قمرك في ${moon?.sign} يعزز الإبداع والتواصل.`;
+        content = `كشخص من برج ${sunSign}، اليوم هو يوم مناسب للتفكير في أهدافك المستقبلية. قمرك في ${moonSign} يعزز الإبداع والتواصل.`;
         break;
       case "love":
         title = "توقعات الحب والعلاقات";
-        content = `علاقاتك العاطفية متأثرة بوجود الشمس في ${sun?.sign} والقمر في ${moon?.sign}. هذا وقت جيد للتعبير عن مشاعرك بصدق.`;
+        content = `علاقاتك العاطفية متأثرة بوجود الشمس في ${sunSign} والقمر في ${moonSign}. هذا وقت جيد للتعبير عن مشاعرك بصدق.`;
         break;
       case "career":
         title = "توقعات العمل والمهنة";
-        content = `وضع الشمس في ${sun?.sign} يدل على فرص مهنية جديدة. استفد من طاقة القمر في ${moon?.sign} لتطوير مهاراتك القيادية.`;
+        content = `وضع الشمس في ${sunSign} يدل على فرص مهنية جديدة. استفد من طاقة القمر في ${moonSign} لتطوير مهاراتك القيادية.`;
         break;
       case "health":
         title = "توقعات الصحة والعافية";
-        content = `صحتك متأثرة بتوازن الطاقة بين الشمس في ${sun?.sign} والقمر في ${moon?.sign}. حاول الاهتمام بالتوازن بين النشاط والراحة.`;
+        content = `صحتك متأثرة بتوازن الطاقة بين الشمس في ${sunSign} والقمر في ${moonSign}. حاول الاهتمام بالتوازن بين النشاط والراحة.`;
         break;
       default:
         title = "التوقعات الفلكية";
-        content = `وفقا لخريطتك الفلكية مع الشمس في ${sun?.sign} والقمر في ${moon?.sign} والطالع ${ascendant}، يمكنك توقع فترة من النمو الشخصي.`;
+        content = `وفقا لخريطتك الفلكية مع الشمس في ${sunSign} والقمر في ${moonSign} والطالع ${getArabicZodiacSign(chart.ascendant.sign)}، يمكنك توقع فترة من النمو الشخصي.`;
     }
     
     // Add dialect-specific phrases (could be expanded)
@@ -340,16 +304,16 @@ export const generateHoroscopeFromEphemeris = async (
     }
     
     // Generate lucky elements based on chart
-    const luckyNumber = Math.floor(sun?.degree || 0) % 10 + 1;
-    const luckyStar = chart.planets[Math.floor(chart.planets.length * 0.3)].planet;
+    const luckyNumber = Math.floor(sunData.degree || 0) % 10 + 1;
+    const luckyStar = Object.keys(planetNames)[Math.floor(Object.keys(planetNames).length * 0.3)];
     const luckyColors = ["الأزرق", "الأخضر", "الذهبي", "الأبيض", "الأحمر"];
-    const luckyColor = luckyColors[Math.floor(chart.planets.length * 0.7) % luckyColors.length];
+    const luckyColor = luckyColors[Math.floor(Object.keys(chart.planets).length * 0.7) % luckyColors.length];
     
     return {
       title,
       content,
       luckyNumber,
-      luckyStar,
+      luckyStar: planetNames[luckyStar as keyof typeof planetNames] || "المشتري",
       luckyColor
     };
   } catch (error) {
@@ -367,25 +331,35 @@ export const generateHoroscopeFromEphemeris = async (
 // Generate a comprehensive birth chart interpretation
 export const generateBirthChartInterpretation = (chart: any, hasBirthTime: boolean): string => {
   try {
-    // Find the main planets
-    const sun = chart.planets.find((p: any) => p.planet === "الشمس");
-    const moon = chart.planets.find((p: any) => p.planet === "القمر");
-    const mercury = chart.planets.find((p: any) => p.planet === "عطارد");
-    const venus = chart.planets.find((p: any) => p.planet === "الزهرة");
-    const mars = chart.planets.find((p: any) => p.planet === "المريخ");
-    const jupiter = chart.planets.find((p: any) => p.planet === "المشتري");
-    const saturn = chart.planets.find((p: any) => p.planet === "زحل");
+    console.log("Generating interpretation from raw API data:", JSON.stringify(chart));
+    
+    // Directly work with the original API response format
+    // Translate the zodiac signs from English to Arabic
+    const sunSign = getArabicZodiacSign(chart.planets.Sun.sign);
+    const moonSign = getArabicZodiacSign(chart.planets.Moon.sign);
+    const mercurySign = getArabicZodiacSign(chart.planets.Mercury.sign);
+    const venusSign = getArabicZodiacSign(chart.planets.Venus.sign);
+    const marsSign = getArabicZodiacSign(chart.planets.Mars.sign);
+    const jupiterSign = getArabicZodiacSign(chart.planets.Jupiter.sign);
+    const saturnSign = getArabicZodiacSign(chart.planets.Saturn.sign);
+    const uranusSign = getArabicZodiacSign(chart.planets.Uranus.sign);
+    const neptuneSign = getArabicZodiacSign(chart.planets.Neptune.sign);
+    const plutoSign = getArabicZodiacSign(chart.planets.Pluto.sign);
+    
+    // Get ascendant and midheaven from the direct API response
+    const ascendantSign = getArabicZodiacSign(chart.ascendant.sign);
+    const midheavenSign = getArabicZodiacSign(chart.midheaven.sign);
     
     // Build a comprehensive interpretation
     let interpretation = `✨ تحليل خريطتك الفلكية الكاملة ✨\n\n`;
     
     // Section 1: Overview
     interpretation += `🪐 نظرة عامة:\n`;
-    interpretation += `شمسك في برج ${sun?.sign} ${getZodiacEmoji(sun?.sign || "")}\n`;
-    interpretation += `قمرك في برج ${moon?.sign} ${getZodiacEmoji(moon?.sign || "")}\n`;
+    interpretation += `شمسك في برج ${sunSign} ${getZodiacEmoji(sunSign)}\n`;
+    interpretation += `قمرك في برج ${moonSign} ${getZodiacEmoji(moonSign)}\n`;
     
     if (hasBirthTime) {
-      interpretation += `الطالع (الأسندنت) في برج ${chart.ascendant} ${getZodiacEmoji(chart.ascendant || "")}\n\n`;
+      interpretation += `الطالع (الأسندنت) في برج ${ascendantSign} ${getZodiacEmoji(ascendantSign)}\n\n`;
     } else {
       interpretation += `\nنظراً لعدم توفر وقت الميلاد الدقيق، لا يمكننا تحديد الطالع والبيوت الفلكية. الرجاء إضافة وقت الميلاد للحصول على تحليل كامل.\n\n`;
     }
@@ -393,65 +367,75 @@ export const generateBirthChartInterpretation = (chart: any, hasBirthTime: boole
     // Section 2: Detailed planet analysis
     interpretation += `💫 تحليل الكواكب:\n\n`;
     
-    interpretation += `• الشمس في ${sun?.sign} ${getZodiacEmoji(sun?.sign || "")}:\n`;
-    interpretation += getPlanetInterpretation("sun", sun?.sign || "") + "\n\n";
+    interpretation += `• الشمس في ${sunSign} ${getZodiacEmoji(sunSign)}:\n`;
+    interpretation += getPlanetInterpretation("sun", sunSign) + "\n\n";
     
-    interpretation += `• القمر في ${moon?.sign} ${getZodiacEmoji(moon?.sign || "")}:\n`;
-    interpretation += getPlanetInterpretation("moon", moon?.sign || "") + "\n\n";
+    interpretation += `• القمر في ${moonSign} ${getZodiacEmoji(moonSign)}:\n`;
+    interpretation += getPlanetInterpretation("moon", moonSign) + "\n\n";
     
-    interpretation += `• عطارد في ${mercury?.sign} ${getZodiacEmoji(mercury?.sign || "")}${mercury?.retrograde ? " (تراجع)" : ""}:\n`;
-    interpretation += getPlanetInterpretation("mercury", mercury?.sign || "") + "\n\n";
+    interpretation += `• عطارد في ${mercurySign} ${getZodiacEmoji(mercurySign)}${chart.planets.Mercury.retrograde ? " (تراجع)" : ""}:\n`;
+    interpretation += getPlanetInterpretation("mercury", mercurySign) + "\n\n";
     
-    interpretation += `• الزهرة في ${venus?.sign} ${getZodiacEmoji(venus?.sign || "")}${venus?.retrograde ? " (تراجع)" : ""}:\n`;
-    interpretation += getPlanetInterpretation("venus", venus?.sign || "") + "\n\n";
+    interpretation += `• الزهرة في ${venusSign} ${getZodiacEmoji(venusSign)}${chart.planets.Venus.retrograde ? " (تراجع)" : ""}:\n`;
+    interpretation += getPlanetInterpretation("venus", venusSign) + "\n\n";
     
-    interpretation += `• المريخ في ${mars?.sign} ${getZodiacEmoji(mars?.sign || "")}${mars?.retrograde ? " (تراجع)" : ""}:\n`;
-    interpretation += getPlanetInterpretation("mars", mars?.sign || "") + "\n\n";
+    interpretation += `• المريخ في ${marsSign} ${getZodiacEmoji(marsSign)}${chart.planets.Mars.retrograde ? " (تراجع)" : ""}:\n`;
+    interpretation += getPlanetInterpretation("mars", marsSign) + "\n\n";
     
-    interpretation += `• المشتري في ${jupiter?.sign} ${getZodiacEmoji(jupiter?.sign || "")}${jupiter?.retrograde ? " (تراجع)" : ""}:\n`;
-    interpretation += getPlanetInterpretation("jupiter", jupiter?.sign || "") + "\n\n";
+    interpretation += `• المشتري في ${jupiterSign} ${getZodiacEmoji(jupiterSign)}${chart.planets.Jupiter.retrograde ? " (تراجع)" : ""}:\n`;
+    interpretation += getPlanetInterpretation("jupiter", jupiterSign) + "\n\n";
     
-    interpretation += `• زحل في ${saturn?.sign} ${getZodiacEmoji(saturn?.sign || "")}${saturn?.retrograde ? " (تراجع)" : ""}:\n`;
-    interpretation += getPlanetInterpretation("saturn", saturn?.sign || "") + "\n";
+    interpretation += `• زحل في ${saturnSign} ${getZodiacEmoji(saturnSign)}${chart.planets.Saturn.retrograde ? " (تراجع)" : ""}:\n`;
+    interpretation += getPlanetInterpretation("saturn", saturnSign) + "\n\n";
+    
+    interpretation += `• أورانوس في ${uranusSign} ${getZodiacEmoji(uranusSign)}${chart.planets.Uranus.retrograde ? " (تراجع)" : ""}:\n`;
+    interpretation += "أورانوس يمثل التغيير المفاجئ والتحرر والابتكار في حياتك. موقعه يؤثر على كيفية تعاملك مع التكنولوجيا والمجتمع.\n\n";
+    
+    interpretation += `• نبتون في ${neptuneSign} ${getZodiacEmoji(neptuneSign)}${chart.planets.Neptune.retrograde ? " (تراجع)" : ""}:\n`;
+    interpretation += "نبتون يتعلق بالخيال والروحانية والتضحية. يؤثر على جوانب الإلهام والحدس في شخصيتك.\n\n";
+    
+    interpretation += `• بلوتو في ${plutoSign} ${getZodiacEmoji(plutoSign)}${chart.planets.Pluto.retrograde ? " (تراجع)" : ""}:\n`;
+    interpretation += "بلوتو يمثل التحول العميق والقوة والتجديد. يشير إلى المجالات التي تمر فيها بتغيرات جذرية.\n";
     
     // Section 3: Houses (only if birth time is available)
     if (hasBirthTime && chart.houses && chart.houses.length > 0) {
       interpretation += `\n\n🏠 تحليل البيوت الفلكية:\n\n`;
       
-      chart.houses.slice(0, 6).forEach((house: any) => {
-        interpretation += `• ${houseNames[house.house - 1]} في ${house.sign} ${getZodiacEmoji(house.sign || "")}:\n`;
-        interpretation += getHouseInterpretation(house.house, house.sign) + "\n\n";
+      chart.houses.forEach((house: any) => {
+        const houseNumber = house.house;
+        const houseSign = getArabicZodiacSign(house.sign);
+        
+        interpretation += `• ${houseNames[houseNumber - 1]} في ${houseSign} ${getZodiacEmoji(houseSign)}:\n`;
+        interpretation += getHouseInterpretation(houseNumber, houseSign) + "\n\n";
       });
-      
-      // Add more houses if desired, but keep length manageable
     }
     
     // Section 4: Ascendant & Midheaven (only if birth time is available)
     if (hasBirthTime) {
       interpretation += `\n🔭 الطالع والميدهيفن:\n\n`;
-      interpretation += `• الطالع في ${chart.ascendant} ${getZodiacEmoji(chart.ascendant || "")}:\n`;
-      interpretation += getAscendantInterpretation(chart.ascendant) + "\n\n";
+      interpretation += `• الطالع في ${ascendantSign} ${getZodiacEmoji(ascendantSign)}:\n`;
+      interpretation += getAscendantInterpretation(ascendantSign) + "\n\n";
       
-      interpretation += `• الميدهيفن في ${chart.midheaven} ${getZodiacEmoji(chart.midheaven || "")}:\n`;
-      interpretation += getMidheavenInterpretation(chart.midheaven) + "\n";
+      interpretation += `• الميدهيفن في ${midheavenSign} ${getZodiacEmoji(midheavenSign)}:\n`;
+      interpretation += getMidheavenInterpretation(midheavenSign) + "\n";
     }
     
     // Section 5: Psychological profile
     interpretation += `\n\n🧠 الملف النفسي:\n`;
-    interpretation += `تجمع بين طاقة الشمس في ${sun?.sign} وعاطفة القمر في ${moon?.sign}،`;
+    interpretation += `تجمع بين طاقة الشمس في ${sunSign} وعاطفة القمر في ${moonSign}،`;
     if (hasBirthTime) {
-      interpretation += ` مع تأثير الطالع في ${chart.ascendant}.`;
+      interpretation += ` مع تأثير الطالع في ${ascendantSign}.`;
     }
-    interpretation += ` هذه التركيبة تجعلك ${getPsychologicalProfile(sun?.sign || "", moon?.sign || "", hasBirthTime ? chart.ascendant : null)}\n`;
+    interpretation += ` هذه التركيبة تجعلك ${getPsychologicalProfile(sunSign, moonSign, hasBirthTime ? ascendantSign : null)}\n`;
     
     // Section 6: Life potentials
     interpretation += `\n❤️ إمكانات الحياة:\n\n`;
-    interpretation += `• الحب والعلاقات: ${getLoveProfile(venus?.sign || "", mars?.sign || "", moon?.sign || "")}\n\n`;
-    interpretation += `• المهنة والعمل: ${getCareerProfile(sun?.sign || "", jupiter?.sign || "", saturn?.sign || "", hasBirthTime ? chart.midheaven : null)}\n\n`;
-    interpretation += `• المسار الحياتي: ${getLifePathProfile(sun?.sign || "", moon?.sign || "", jupiter?.sign || "")}\n`;
+    interpretation += `• الحب والعلاقات: ${getLoveProfile(venusSign, marsSign, moonSign)}\n\n`;
+    interpretation += `• المهنة والعمل: ${getCareerProfile(sunSign, jupiterSign, saturnSign, hasBirthTime ? midheavenSign : null)}\n\n`;
+    interpretation += `• المسار الحياتي: ${getLifePathProfile(sunSign, moonSign, jupiterSign)}\n`;
     
     // Section 7: Notable patterns
-    const patterns = getNotablePlanetary(chart.planets);
+    const patterns = getNotablePlanetary(chart);
     if (patterns && patterns.length > 0) {
       interpretation += `\n\n🌟 أنماط كوكبية ملحوظة:\n`;
       patterns.forEach((pattern: string) => {
@@ -763,7 +747,7 @@ const getLifePathProfile = (sun: string, moon: string, jupiter: string): string 
              (moon === "الجوزاء" || moon === "الميزان" || moon === "الدلو")) {
     traits += "مسارك الحياتي يتجه نحو التعلم المستمر والتواصل وتطوير الأفكار الجديدة";
   } else if ((sun === "السرطان" || sun === "العقرب" || sun === "الحوت") && 
-             (moon === "السرطان" || moon === "العقرب" || moon === "الحوت")) {
+             (moon === "السرطان" || sun === "العقرب" || sun === "الحوت")) {
     traits += "مسارك الحياتي عميق وتحويلي، يركز على النمو العاطفي والروحي";
   } else {
     traits += "مسارك الحياتي متنوع ومتعدد الأبعاد، يجمع بين جوانب مختلفة من شخصيتك";
@@ -773,26 +757,34 @@ const getLifePathProfile = (sun: string, moon: string, jupiter: string): string 
 };
 
 // Detect notable planetary patterns
-const getNotablePlanetary = (planets: any[]): string[] | null => {
+const getNotablePlanetary = (chart: any): string[] | null => {
   const patterns = [];
   
-  // Check for stellium (3 or more planets in one sign)
+  // Convert the planets object to an array format for analysis
+  const planetsArray = Object.entries(chart.planets).map(([name, data]: [string, any]) => ({
+    planet: name,
+    sign: data.sign,
+    degree: data.degree,
+    retrograde: data.retrograde
+  }));
+  
+  // Group planets by sign
   const planetsBySign: Record<string, any[]> = {};
-  planets.forEach(planet => {
+  planetsArray.forEach(planet => {
     if (!planetsBySign[planet.sign]) {
       planetsBySign[planet.sign] = [];
     }
     planetsBySign[planet.sign].push(planet);
   });
   
+  // Check for stellium (3 or more planets in one sign)
   Object.entries(planetsBySign).forEach(([sign, planets]) => {
     if (planets.length >= 3) {
-      const planetNames = planets.map(p => p.planet).join("، ");
-      patterns.push(`تراكم في برج ${sign} ${getZodiacEmoji(sign)}: ${planetNames}. هذا يعزز تأثير برج ${sign} في شخصيتك ومسار حياتك.`);
+      const planetNames = planets.map(p => planetNames[p.planet as keyof typeof planetNames] || p.planet).join("، ");
+      patterns.push(`تراكم في برج ${getArabicZodiacSign(sign)} ${getZodiacEmoji(getArabicZodiacSign(sign))}: ${planetNames}. هذا يعزز تأثير برج ${getArabicZodiacSign(sign)} في شخصيتك ومسار حياتك.`);
     }
   });
   
-  // Add more pattern detection as needed
-  
   return patterns.length > 0 ? patterns : null;
 };
+
