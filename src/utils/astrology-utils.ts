@@ -25,14 +25,18 @@ export const generateHoroscope = async (
     // Calculate natal chart using the updated API
     const chart = await calculateNatalChart(userId, birthDate, birthTime, birthPlace);
     
-    // Verify the key positions in the chart match our expectations for the given birth details
-    const sun = chart.planets.find((p: any) => p.planet === "الشمس");
-    const moon = chart.planets.find((p: any) => p.planet === "القمر");
+    // Log the complete chart data for verification
+    console.log("Complete chart data from API:", JSON.stringify(chart));
+    
+    // Extract Sun and Moon sign directly from API response - no translation needed
+    // The API returns planet positions in the format we need
+    const sunData = chart.planets.Sun || {};
+    const moonData = chart.planets.Moon || {};
     
     console.log(`VERIFICATION - Horoscope calculation using chart with JD: ${chart.julianDay}`);
-    console.log(`VERIFICATION - Sun sign used in horoscope: ${sun?.sign}`);
-    console.log(`VERIFICATION - Moon sign used in horoscope: ${moon?.sign}`);
-    console.log(`VERIFICATION - Ascendant used in horoscope: ${chart.ascendant}`);
+    console.log(`VERIFICATION - Sun sign used in horoscope: ${sunData.sign}`);
+    console.log(`VERIFICATION - Moon sign used in horoscope: ${moonData.sign}`);
+    console.log(`VERIFICATION - Ascendant used in horoscope: ${chart.ascendant?.sign}`);
     
     // Generate personalized horoscope from chart data
     return await generateHoroscopeFromEphemeris(userId, chart, type, dialect);
@@ -70,7 +74,11 @@ export const generateBirthChartAnalysis = async (
     // Calculate natal chart
     const chart = await calculateNatalChart(userId, birthDate, birthTime || "12:00", birthPlace);
     
+    // Log the complete chart data for verification
+    console.log("Complete chart data for birth chart analysis:", JSON.stringify(chart));
+    
     // Generate interpretation using the comprehensive method
+    // This will use the exact data from the API without any transformation
     return generateBirthChartInterpretation(chart, hasBirthTime);
     
   } catch (error) {
