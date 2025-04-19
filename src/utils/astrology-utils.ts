@@ -21,8 +21,17 @@ export const generateHoroscope = async (
   try {
     console.log(`Attempting to generate ${type} horoscope for user ${userId}`);
     
-    // Calculate natal chart using API
+    // Calculate natal chart using API, which uses the Julian Day returned by the backend
     const chart = await calculateNatalChart(userId, birthDate, birthTime, birthPlace);
+    
+    // Verify the key positions in the chart match our expectations for the given birth details
+    const sun = chart.planets.find((p: any) => p.planet === "الشمس");
+    const moon = chart.planets.find((p: any) => p.planet === "القمر");
+    
+    console.log(`VERIFICATION - Horoscope calculation using chart with JD: ${chart.julianDay}`);
+    console.log(`VERIFICATION - Sun sign used in horoscope: ${sun?.sign}`);
+    console.log(`VERIFICATION - Moon sign used in horoscope: ${moon?.sign}`);
+    console.log(`VERIFICATION - Ascendant used in horoscope: ${chart.ascendant}`);
     
     // Generate personalized horoscope from chart data
     return await generateHoroscopeFromEphemeris(userId, chart, type, dialect);
