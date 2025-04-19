@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -47,7 +48,8 @@ import {
   getCharacterLimit
 } from "@/utils/subscription-utils";
 import { 
-  calculateNatalChart 
+  calculateNatalChart,
+  generateBirthChartInterpretation
 } from "@/utils/swiss-ephemeris-utils";
 import { Dialect, User, HoroscopeType } from "@/types";
 
@@ -80,6 +82,7 @@ const generateBirthChartSummary = async (user: User): Promise<string> => {
   }
 
   try {
+    // Calculate the full natal chart
     const chart = await calculateNatalChart(
       user.id,
       user.birthDate, 
@@ -87,20 +90,18 @@ const generateBirthChartSummary = async (user: User): Promise<string> => {
       user.birthPlace
     );
     
-    const zodiacSign = getZodiacSign(user.birthDate);
-    const zodiacEmoji = getZodiacEmoji(zodiacSign);
+    // Check if birth time is provided to determine the level of detail
+    const hasBirthTime = !!user.birthTime && user.birthTime.trim() !== "";
     
-    const sun = chart.planets.find(p => p.planet === "الشمس");
-    const moon = chart.planets.find(p => p.planet === "القمر");
-    const mercury = chart.planets.find(p => p.planet === "عطارد");
+    // Generate a comprehensive birth chart interpretation
+    const interpretation = generateBirthChartInterpretation(chart, hasBirthTime);
     
-    return `✨ خريطتك الفلكية الأساسية ✨\n\n` +
-      `برجك: ${zodiacSign} ${zodiacEmoji}\n` +
-      `الطالع: ${chart.ascendant} ↗️\n` +
-      `الشمس في: ${sun?.sign} ${sun?.retrograde ? "☿ᴿ" : ""}\n` +
-      `القمر في: ${moon?.sign} ${moon?.retrograde ? "☿ᴿ" : ""}\n` +
-      `عطارد في: ${mercury?.sign} ${mercury?.retrograde ? "☿ᴿ" : ""}\n\n` +
-      `هذه معلومات أساسية عن خريطتك الفلكية. ماذا تريد أن تعرف المزيد عنه؟ يمكنك استخدام الأوامر التالية:`;
+    // Return the full interpretation
+    return interpretation + "\n\nيمكنك استخدام الأوامر التالية للحصول على توقعات مختلفة:\n" +
+      "🔮 /horoscope - قراءة يومية\n" +
+      "❤️ /love - توقعات الحب\n" +
+      "💼 /career - توقعات العمل\n" +
+      "🌿 /health - توقعات الصحة";
   } catch (error) {
     console.error("Error generating birth chart summary:", error);
     return "حدث خطأ أثناء توليد معلومات خريطتك الفلكية. يرجى المحاولة مرة أخرى لاحقًا.";
