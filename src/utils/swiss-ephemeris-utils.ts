@@ -1,4 +1,3 @@
-
 import { toast } from "sonner";
 import { User } from "@/types";
 
@@ -96,7 +95,7 @@ export const calculateNatalChart = async (
       time: birthTime || "12:00",
       lat: coords.lat,
       lon: coords.lon,
-      timezone: "UTC" // We could improve this by using the actual timezone
+      timezone: "UTC"
     };
     
     console.log("Sending payload to natal-chart API:", JSON.stringify(natalChartPayload));
@@ -116,6 +115,19 @@ export const calculateNatalChart = async (
     
     const julianDay = natalChartData.julianDay;
     console.log("VERIFICATION - Using exact Julian Day from API:", julianDay);
+    
+    // Only proceed with full chart if birth time is provided
+    if (!birthTime) {
+      return {
+        julianDay,
+        timestamp: natalChartData.timestamp,
+        coordinates: {
+          latitude: coords.lat,
+          longitude: coords.lon
+        },
+        hasBirthTime: false
+      };
+    }
     
     // Step 2: Call full-chart API with the Julian Day
     const fullChartPayload = {
@@ -139,652 +151,197 @@ export const calculateNatalChart = async (
     const fullChartData = await fullChartResponse.json();
     console.log("full-chart API response:", JSON.stringify(fullChartData));
     
-    // Process the full chart data
-    return fullChartData;
+    return {
+      ...fullChartData,
+      julianDay,
+      timestamp: natalChartData.timestamp,
+      coordinates: {
+        latitude: coords.lat,
+        longitude: coords.lon
+      },
+      hasBirthTime: true
+    };
     
   } catch (error) {
     console.error("Error fetching natal chart:", error);
-    // Use fallback chart when API fails
-    toast.error("Could not fetch your celestial data. Using generic chart data.");
-    return generateFallbackChartData(birthDate, birthTime, birthPlace);
+    throw error;
   }
 };
 
-// Generate a fallback chart when API fails
-const generateFallbackChartData = (birthDate: string, birthTime: string, birthPlace: string): any => {
-  console.warn("Generating fallback chart data as API request failed");
-  
-  const seedDate = new Date(birthDate).getTime();
-  const seedTime = birthTime ? birthTime.split(":").reduce((acc, val) => acc + parseInt(val, 10), 0) : 0;
-  const seedPlace = birthPlace.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  const combinedSeed = seedDate + seedTime + seedPlace;
-  
-  // Generate a fallback structure that matches the API response
-  return {
-    julianDay: dateToJulianDay(birthDate, birthTime),
-    timestamp: new Date().toISOString(),
-    ascendant: {
-      sign: getZodiacSign(birthDate),
-      degree: random(combinedSeed + 18) * 30
-    },
-    midheaven: {
-      sign: zodiacSigns[Math.floor(random(combinedSeed + 19) * 12)],
-      degree: random(combinedSeed + 19) * 30
-    },
-    planets: {
-      Sun: { sign: getZodiacSign(birthDate), degree: random(combinedSeed) * 30, retrograde: false },
-      Moon: { sign: zodiacSigns[Math.floor(random(combinedSeed + 1) * 12)], degree: random(combinedSeed + 1) * 30, retrograde: false },
-      Mercury: { sign: zodiacSigns[Math.floor(random(combinedSeed + 2) * 12)], degree: random(combinedSeed + 2) * 30, retrograde: random(combinedSeed + 3) > 0.8 },
-      Venus: { sign: zodiacSigns[Math.floor(random(combinedSeed + 4) * 12)], degree: random(combinedSeed + 4) * 30, retrograde: random(combinedSeed + 5) > 0.9 },
-      Mars: { sign: zodiacSigns[Math.floor(random(combinedSeed + 6) * 12)], degree: random(combinedSeed + 6) * 30, retrograde: random(combinedSeed + 7) > 0.85 },
-      Jupiter: { sign: zodiacSigns[Math.floor(random(combinedSeed + 8) * 12)], degree: random(combinedSeed + 8) * 30, retrograde: random(combinedSeed + 9) > 0.7 },
-      Saturn: { sign: zodiacSigns[Math.floor(random(combinedSeed + 10) * 12)], degree: random(combinedSeed + 10) * 30, retrograde: random(combinedSeed + 11) > 0.6 },
-      Uranus: { sign: zodiacSigns[Math.floor(random(combinedSeed + 12) * 12)], degree: random(combinedSeed + 12) * 30, retrograde: random(combinedSeed + 13) > 0.3 },
-      Neptune: { sign: zodiacSigns[Math.floor(random(combinedSeed + 14) * 12)], degree: random(combinedSeed + 14) * 30, retrograde: random(combinedSeed + 15) > 0.4 },
-      Pluto: { sign: zodiacSigns[Math.floor(random(combinedSeed + 16) * 12)], degree: random(combinedSeed + 16) * 30, retrograde: random(combinedSeed + 17) > 0.5 }
-    },
-    houses: Array.from({ length: 12 }, (_, i) => ({
-      house: i + 1,
-      sign: zodiacSigns[Math.floor(random(combinedSeed + 20 + i) * 12)],
-      degree: random(combinedSeed + 20 + i) * 30
-    }))
-  };
-};
-
-// Get zodiac sign from birth date
-export const getZodiacSign = (birthDate: string): string => {
-  const date = new Date(birthDate);
-  const day = date.getDate();
-  const month = date.getMonth() + 1;
-  
-  if ((month === 3 && day >= 21) || (month === 4 && day <= 19)) return "الحمل";
-  if ((month === 4 && day >= 20) || (month === 5 && day <= 20)) return "الثور";
-  if ((month === 5 && day >= 21) || (month === 6 && day <= 20)) return "الجوزاء";
-  if ((month === 6 && day >= 21) || (month === 7 && day <= 22)) return "السرطان";
-  if ((month === 7 && day >= 23) || (month === 8 && day <= 22)) return "الأسد";
-  if ((month === 8 && day >= 23) || (month === 9 && day <= 22)) return "العذراء";
-  if ((month === 9 && day >= 23) || (month === 10 && day <= 22)) return "الميزان";
-  if ((month === 10 && day >= 23) || (month === 11 && day <= 21)) return "العقرب";
-  if ((month === 11 && day >= 22) || (month === 12 && day <= 21)) return "القوس";
-  if ((month === 12 && day >= 22) || (month === 1 && day <= 19)) return "الجدي";
-  if ((month === 1 && day >= 20) || (month === 2 && day <= 18)) return "الدلو";
-  return "الحوت";
-};
-
-// Get emoji for zodiac sign
-export const getZodiacEmoji = (zodiacSign: string): string => {
-  const zodiacEmojis: Record<string, string> = {
-    "الحمل": "♈",
-    "الثور": "♉",
-    "الجوزاء": "♊",
-    "السرطان": "♋",
-    "الأسد": "♌",
-    "العذراء": "♍",
-    "الميزان": "♎",
-    "العقرب": "♏",
-    "القوس": "♐",
-    "الجدي": "♑",
-    "الدلو": "♒",
-    "الحوت": "♓"
-  };
-  
-  return zodiacEmojis[zodiacSign] || "✨";
-};
-
-// Convert English zodiac sign to Arabic
-const getArabicZodiacSign = (englishSign: string): string => {
-  const signMap: Record<string, string> = {
-    "Aries": "الحمل",
-    "Taurus": "الثور",
-    "Gemini": "الجوزاء", 
-    "Cancer": "السرطان",
-    "Leo": "الأسد", 
-    "Virgo": "العذراء",
-    "Libra": "الميزان", 
-    "Scorpio": "العقرب",
-    "Sagittarius": "القوس", 
-    "Capricorn": "الجدي",
-    "Aquarius": "الدلو", 
-    "Pisces": "الحوت"
-  };
-  
-  return signMap[englishSign] || englishSign;
-};
-
-// Generate horoscope based on ephemeris data
-export const generateHoroscopeFromEphemeris = async (
-  userId: string,
-  chart: any,
-  type: string,
-  dialect: string
-): Promise<any> => {
-  // This would normally call an LLM or other service to generate personalized content
-  // For now, we'll return a simple horoscope based on the chart data
-  
-  try {
-    // Get planet positions from the chart, making sure we're extracting them correctly
-    const sunData = chart.planets.Sun || {};
-    const moonData = chart.planets.Moon || {};
-    
-    // Create basic content based on type and chart data
-    let content = "";
-    let title = "";
-    
-    // Ensure we have the correct Arabic zodiac sign names
-    const sunSign = getArabicZodiacSign(sunData.sign);
-    const moonSign = getArabicZodiacSign(moonData.sign);
-    
-    switch (type) {
-      case "daily":
-        title = "توقعات اليومية";
-        content = `كشخص من برج ${sunSign}، اليوم هو يوم مناسب للتفكير في أهدافك المستقبلية. قمرك في ${moonSign} يعزز الإبداع والتواصل.`;
-        break;
-      case "love":
-        title = "توقعات الحب والعلاقات";
-        content = `علاقاتك العاطفية متأثرة بوجود الشمس في ${sunSign} والقمر في ${moonSign}. هذا وقت جيد للتعبير عن مشاعرك بصدق.`;
-        break;
-      case "career":
-        title = "توقعات العمل والمهنة";
-        content = `وضع الشمس في ${sunSign} يدل على فرص مهنية جديدة. استفد من طاقة القمر في ${moonSign} لتطوير مهاراتك القيادية.`;
-        break;
-      case "health":
-        title = "توقعات الصحة والعافية";
-        content = `صحتك متأثرة بتوازن الطاقة بين الشمس في ${sunSign} والقمر في ${moonSign}. حاول الاهتمام بالتوازن بين النشاط والراحة.`;
-        break;
-      default:
-        title = "التوقعات الفلكية";
-        content = `وفقا لخريطتك الفلكية مع الشمس في ${sunSign} والقمر في ${moonSign} والطالع ${getArabicZodiacSign(chart.ascendant.sign)}، يمكنك توقع فترة من النمو الشخصي.`;
-    }
-    
-    // Add dialect-specific phrases (could be expanded)
-    if (dialect === "egyptian") {
-      content += " وزي ما بنقول في مصر، اللي يتعب دلوقتي هيرتاح بعدين!";
-    } else if (dialect === "levantine") {
-      content += " متل ما منحكي عنا، شد حيلك وما تيأس!";
-    }
-    
-    // Generate lucky elements based on chart
-    const luckyNumber = Math.floor(sunData.degree || 0) % 10 + 1;
-    const luckyStar = Object.keys(planetNames)[Math.floor(Object.keys(planetNames).length * 0.3)];
-    const luckyColors = ["الأزرق", "الأخضر", "الذهبي", "الأبيض", "الأحمر"];
-    const luckyColor = luckyColors[Math.floor(Object.keys(chart.planets).length * 0.7) % luckyColors.length];
-    
-    return {
-      title,
-      content,
-      luckyNumber,
-      luckyStar: planetNames[luckyStar as keyof typeof planetNames] || "المشتري",
-      luckyColor
-    };
-  } catch (error) {
-    console.error("Error generating horoscope from ephemeris:", error);
-    return {
-      title: "التوقعات الفلكية",
-      content: "نعتذر، لم نتمكن من توليد تنبؤ دقيق في الوقت الحالي. يرجى المحاولة مرة أخرى لاحقًا.",
-      luckyNumber: 7,
-      luckyStar: "المشتري",
-      luckyColor: "الأزرق"
-    };
-  }
-};
-
-// Generate a comprehensive birth chart interpretation
 export const generateBirthChartInterpretation = (chart: any, hasBirthTime: boolean): string => {
   try {
-    console.log("Generating interpretation from raw API data:", JSON.stringify(chart));
-    
-    // Directly work with the original API response format
-    // Translate the zodiac signs from English to Arabic
-    const sunSign = getArabicZodiacSign(chart.planets.Sun.sign);
-    const moonSign = getArabicZodiacSign(chart.planets.Moon.sign);
-    const mercurySign = getArabicZodiacSign(chart.planets.Mercury.sign);
-    const venusSign = getArabicZodiacSign(chart.planets.Venus.sign);
-    const marsSign = getArabicZodiacSign(chart.planets.Mars.sign);
-    const jupiterSign = getArabicZodiacSign(chart.planets.Jupiter.sign);
-    const saturnSign = getArabicZodiacSign(chart.planets.Saturn.sign);
-    const uranusSign = getArabicZodiacSign(chart.planets.Uranus.sign);
-    const neptuneSign = getArabicZodiacSign(chart.planets.Neptune.sign);
-    const plutoSign = getArabicZodiacSign(chart.planets.Pluto.sign);
-    
-    // Get ascendant and midheaven from the direct API response
-    const ascendantSign = getArabicZodiacSign(chart.ascendant.sign);
-    const midheavenSign = getArabicZodiacSign(chart.midheaven.sign);
-    
-    // Build a comprehensive interpretation
-    let interpretation = `✨ تحليل خريطتك الفلكية الكاملة ✨\n\n`;
-    
-    // Section 1: Overview
-    interpretation += `🪐 نظرة عامة:\n`;
-    interpretation += `شمسك في برج ${sunSign} ${getZodiacEmoji(sunSign)}\n`;
-    interpretation += `قمرك في برج ${moonSign} ${getZodiacEmoji(moonSign)}\n`;
-    
+    // Comprehensive interpretation logic using EXACT API data
+    let interpretation = `✨ تحليل خريطتك الفلكية الشاملة ✨\n\n`;
+
+    // Sun Sign Interpretation
+    const sunSign = chart.planets.Sun.sign;
+    interpretation += `☀️ الشمس في برج ${sunSign}:\n`;
+    interpretation += getSunSignInterpretation(sunSign) + "\n\n";
+
+    // Moon Sign Interpretation
+    const moonSign = chart.planets.Moon.sign;
+    interpretation += `🌙 القمر في برج ${moonSign}:\n`;
+    interpretation += getMoonSignInterpretation(moonSign) + "\n\n";
+
+    // Mercury Sign Interpretation
+    const mercurySign = chart.planets.Mercury.sign;
+    const mercuryRetrograde = chart.planets.Mercury.retrograde;
+    interpretation += `☿️ عطارد في برج ${mercurySign} ${mercuryRetrograde ? "(تراجع)" : ""}:\n`;
+    interpretation += getMercurySignInterpretation(mercurySign, mercuryRetrograde) + "\n\n";
+
+    // Venus Sign Interpretation
+    const venusSign = chart.planets.Venus.sign;
+    const venusRetrograde = chart.planets.Venus.retrograde;
+    interpretation += `♀️ الزهرة في برج ${venusSign} ${venusRetrograde ? "(تراجع)" : ""}:\n`;
+    interpretation += getVenusSignInterpretation(venusSign, venusRetrograde) + "\n\n";
+
+    // Mars Sign Interpretation
+    const marsSign = chart.planets.Mars.sign;
+    const marsRetrograde = chart.planets.Mars.retrograde;
+    interpretation += `♂️ المريخ في برج ${marsSign} ${marsRetrograde ? "(تراجع)" : ""}:\n`;
+    interpretation += getMarsSignInterpretation(marsSign, marsRetrograde) + "\n\n";
+
+    // Ascendant Interpretation (if birth time available)
     if (hasBirthTime) {
-      interpretation += `الطالع (الأسندنت) في برج ${ascendantSign} ${getZodiacEmoji(ascendantSign)}\n\n`;
+      const ascendantSign = chart.ascendant.sign;
+      interpretation += `🌅 الطالع في برج ${ascendantSign}:\n`;
+      interpretation += getAscendantSignInterpretation(ascendantSign) + "\n\n";
     } else {
-      interpretation += `\nنظراً لعدم توفر وقت الميلاد الدقيق، لا يمكننا تحديد الطالع والبيوت الفلكية. الرجاء إضافة وقت الميلاد للحصول على تحليل كامل.\n\n`;
+      interpretation += "📝 ملاحظة: لم يتم توفير وقت الميلاد، لذا لا يمكن حساب الطالع بدقة.\n\n";
     }
-    
-    // Section 2: Detailed planet analysis
-    interpretation += `💫 تحليل الكواكب:\n\n`;
-    
-    interpretation += `• الشمس في ${sunSign} ${getZodiacEmoji(sunSign)}:\n`;
-    interpretation += getPlanetInterpretation("sun", sunSign) + "\n\n";
-    
-    interpretation += `• القمر في ${moonSign} ${getZodiacEmoji(moonSign)}:\n`;
-    interpretation += getPlanetInterpretation("moon", moonSign) + "\n\n";
-    
-    interpretation += `• عطارد في ${mercurySign} ${getZodiacEmoji(mercurySign)}${chart.planets.Mercury.retrograde ? " (تراجع)" : ""}:\n`;
-    interpretation += getPlanetInterpretation("mercury", mercurySign) + "\n\n";
-    
-    interpretation += `• الزهرة في ${venusSign} ${getZodiacEmoji(venusSign)}${chart.planets.Venus.retrograde ? " (تراجع)" : ""}:\n`;
-    interpretation += getPlanetInterpretation("venus", venusSign) + "\n\n";
-    
-    interpretation += `• المريخ في ${marsSign} ${getZodiacEmoji(marsSign)}${chart.planets.Mars.retrograde ? " (تراجع)" : ""}:\n`;
-    interpretation += getPlanetInterpretation("mars", marsSign) + "\n\n";
-    
-    interpretation += `• المشتري في ${jupiterSign} ${getZodiacEmoji(jupiterSign)}${chart.planets.Jupiter.retrograde ? " (تراجع)" : ""}:\n`;
-    interpretation += getPlanetInterpretation("jupiter", jupiterSign) + "\n\n";
-    
-    interpretation += `• زحل في ${saturnSign} ${getZodiacEmoji(saturnSign)}${chart.planets.Saturn.retrograde ? " (تراجع)" : ""}:\n`;
-    interpretation += getPlanetInterpretation("saturn", saturnSign) + "\n\n";
-    
-    interpretation += `• أورانوس في ${uranusSign} ${getZodiacEmoji(uranusSign)}${chart.planets.Uranus.retrograde ? " (تراجع)" : ""}:\n`;
-    interpretation += "أورانوس يمثل التغيير المفاجئ والتحرر والابتكار في حياتك. موقعه يؤثر على كيفية تعاملك مع التكنولوجيا والمجتمع.\n\n";
-    
-    interpretation += `• نبتون في ${neptuneSign} ${getZodiacEmoji(neptuneSign)}${chart.planets.Neptune.retrograde ? " (تراجع)" : ""}:\n`;
-    interpretation += "نبتون يتعلق بالخيال والروحانية والتضحية. يؤثر على جوانب الإلهام والحدس في شخصيتك.\n\n";
-    
-    interpretation += `• بلوتو في ${plutoSign} ${getZodiacEmoji(plutoSign)}${chart.planets.Pluto.retrograde ? " (تراجع)" : ""}:\n`;
-    interpretation += "بلوتو يمثل التحول العميق والقوة والتجديد. يشير إلى المجالات التي تمر فيها بتغيرات جذرية.\n";
-    
-    // Section 3: Houses (only if birth time is available)
-    if (hasBirthTime && chart.houses && chart.houses.length > 0) {
-      interpretation += `\n\n🏠 تحليل البيوت الفلكية:\n\n`;
-      
-      chart.houses.forEach((house: any) => {
-        const houseNumber = house.house;
-        const houseSign = getArabicZodiacSign(house.sign);
-        
-        interpretation += `• ${houseNames[houseNumber - 1]} في ${houseSign} ${getZodiacEmoji(houseSign)}:\n`;
-        interpretation += getHouseInterpretation(houseNumber, houseSign) + "\n\n";
-      });
-    }
-    
-    // Section 4: Ascendant & Midheaven (only if birth time is available)
-    if (hasBirthTime) {
-      interpretation += `\n🔭 الطالع والميدهيفن:\n\n`;
-      interpretation += `• الطالع في ${ascendantSign} ${getZodiacEmoji(ascendantSign)}:\n`;
-      interpretation += getAscendantInterpretation(ascendantSign) + "\n\n";
-      
-      interpretation += `• الميدهيفن في ${midheavenSign} ${getZodiacEmoji(midheavenSign)}:\n`;
-      interpretation += getMidheavenInterpretation(midheavenSign) + "\n";
-    }
-    
-    // Section 5: Psychological profile
-    interpretation += `\n\n🧠 الملف النفسي:\n`;
-    interpretation += `تجمع بين طاقة الشمس في ${sunSign} وعاطفة القمر في ${moonSign}،`;
-    if (hasBirthTime) {
-      interpretation += ` مع تأثير الطالع في ${ascendantSign}.`;
-    }
-    interpretation += ` هذه التركيبة تجعلك ${getPsychologicalProfile(sunSign, moonSign, hasBirthTime ? ascendantSign : null)}\n`;
-    
-    // Section 6: Life potentials
-    interpretation += `\n❤️ إمكانات الحياة:\n\n`;
-    interpretation += `• الحب والعلاقات: ${getLoveProfile(venusSign, marsSign, moonSign)}\n\n`;
-    interpretation += `• المهنة والعمل: ${getCareerProfile(sunSign, jupiterSign, saturnSign, hasBirthTime ? midheavenSign : null)}\n\n`;
-    interpretation += `• المسار الحياتي: ${getLifePathProfile(sunSign, moonSign, jupiterSign)}\n`;
-    
-    // Section 7: Notable patterns
-    const patterns = getNotablePlanetary(chart);
-    if (patterns && patterns.length > 0) {
-      interpretation += `\n\n🌟 أنماط كوكبية ملحوظة:\n`;
-      patterns.forEach((pattern: string) => {
-        interpretation += `• ${pattern}\n`;
-      });
-    }
-    
+
     return interpretation;
   } catch (error) {
     console.error("Error generating birth chart interpretation:", error);
-    return "عذراً، حدث خطأ أثناء توليد تحليل خريطتك الفلكية. يرجى المحاولة مرة أخرى لاحقًا.";
+    return "عذرًا، حدث خطأ أثناء توليد التفسير الفلكي. يرجى المحاولة مرة أخرى.";
   }
 };
 
-// Get planet interpretation based on sign
-const getPlanetInterpretation = (planet: string, sign: string): string => {
-  const interpretations: Record<string, Record<string, string>> = {
-    "sun": {
-      "الحمل": "تمتلك شخصية قوية وحماسية ومبادرة. تحب المغامرة وتسعى لتكون في المقدمة دائماً.",
-      "الثور": "تتميز بالصبر والثبات والقدرة على بناء الأشياء على أسس متينة. تقدر الجمال والرفاهية.",
-      "الجوزاء": "فضولي وذكي ومتعدد المواهب. تحب التواصل وتبادل الأفكار وتتكيف بسرعة مع المواقف المختلفة.",
-      "السرطان": "عاطفي وحدسي وراعٍ للآخرين. تهتم بالعائلة والأمان العاطفي وتحمي من تحب بقوة.",
-      "الأسد": "إبداعي وكريم ومحب للحياة. تسعى للتقدير والاعتراف وتحب أن تكون محط الأنظار.",
-      "العذراء": "دقيق وعملي ومحلل. تهتم بالتفاصيل وتسعى للكمال في كل ما تقوم به.",
-      "الميزان": "دبلوماسي وعادل ومحب للتوازن والانسجام. تكره الصراع وتسعى دائماً للتوفيق.",
-      "العقرب": "عميق وغامض وقوي الإرادة. لديك قدرة هائلة على التحول والتجديد في حياتك.",
-      "القوس": "متفائل ومغامر ومحب للحرية. تسعى للتوسع في المعرفة والخبرات الجديدة.",
-      "الجدي": "طموح ومنضبط وعملي. تسعى للنجاح والإنجاز وتعمل بجد للوصول إلى أهدافك.",
-      "الدلو": "مستقل وإنساني ومبتكر. تفكر بطريقة مختلفة وتقدر الحرية الفكرية.",
-      "الحوت": "حساس وروحاني وخيالي. لديك قدرة على التعاطف مع الآخرين وفهم مشاعرهم."
-    },
-    "moon": {
-      // Similar interpretations for other planets and signs
-      "الحمل": "مشاعرك مباشرة وقوية، تتفاعل بسرعة مع المواقف العاطفية. تحتاج إلى مساحة للتعبير عن مشاعرك بحرية.",
-      "الثور": "تسعى للاستقرار العاطفي والأمان، وتعبر عن مشاعرك بطريقة هادئة ومتأنية. تجد الراحة في الأمور المادية والملموسة.",
-      "الجوزاء": "مشاعرك متغيرة وتتأثر بالتواصل الفكري. تحتاج للتعبير عن أفكارك ومشاعرك بالكلام للشعور بالتوازن.",
-      "السرطان": "عواطفك عميقة وحدسية، ترتبط بشدة بالماضي والذكريات. تهتم بالعائلة والجذور وتحتاج للشعور بالانتماء.",
-      "الأسد": "تعبر عن مشاعرك بقوة ووضوح، وتحتاج للتقدير والإعجاب. عواطفك دافئة وكريمة ولكنك تحتاج للاعتراف بها.",
-      "العذراء": "تتعامل مع مشاعرك بتحليل وعقلانية، وتحتاج للنظام والترتيب للشعور بالأمان العاطفي.",
-      "الميزان": "تسعى للتوازن والانسجام في عالمك العاطفي. تحتاج للعلاقات المتناغمة وتكره النزاعات والصراعات.",
-      "العقرب": "عواطفك عميقة ومكثفة وتخفي الكثير تحت السطح. لديك قدرة على التغلغل في مشاعر الآخرين وفهمها.",
-      "القوس": "تتعامل مع مشاعرك بتفاؤل وانفتاح، وتحتاج للحرية العاطفية والاستكشاف للشعور بالرضا.",
-      "الجدي": "تتحكم في مشاعرك وتتعامل معها بمسؤولية. قد تكبت عواطفك أحياناً لكنك تتعلم من تجاربك العاطفية.",
-      "الدلو": "تعبر عن مشاعرك بطريقة غير تقليدية وتقيّم الأمور بموضوعية. تحتاج لمساحة شخصية في علاقاتك.",
-      "الحوت": "عواطفك غنية وخيالية، وتتأثر بشدة بمشاعر الآخرين. لديك حدس قوي وقدرة على التعاطف العميق."
-    },
-    "mercury": {
-      // Interpretations for Mercury
-      "الحمل": "تفكر بسرعة وتعبر عن أفكارك بجرأة ومباشرة. قد تكون متسرعاً أحياناً في قراراتك.",
-      "الثور": "تفكر بتأنٍ وعملية، وتحتاج لوقت لمعالجة المعلومات الجديدة. أفكارك ثابتة وموثوقة.",
-      "الجوزاء": "عقلك سريع ومتنوع، وتستمتع بتبادل الأفكار والمعلومات. لديك فضول فكري لا ينضب.",
-      "السرطان": "تفكر بطريقة حدسية وعاطفية، وتتأثر أفكارك بمشاعرك وذكرياتك.",
-      "الأسد": "لديك طريقة تفكير إبداعية ودرامية، وتعبر عن أفكارك بثقة وحماس.",
-      "العذراء": "تحلل المعلومات بدقة وتهتم بالتفاصيل. لديك عقل نقدي ومنظم.",
-      "الميزان": "تفكر بتوازن وتأخذ وجهات نظر مختلفة بعين الاعتبار. تميل للدبلوماسية في تواصلك.",
-      "العقرب": "تفكر بعمق وتبحث عما هو مخفي. لديك قدرة على كشف الحقائق والأسرار.",
-      "القوس": "تفكر بطريقة فلسفية وتهتم بالصورة الكبيرة. تحب استكشاف أفكار جديدة.",
-      "الجدي": "تفكر بطريقة منظمة وعملية، وتقيم الأفكار بناءً على فائدتها الواقعية.",
-      "الدلو": "لديك طريقة تفكير مبتكرة وغير تقليدية. تستمتع بالأفكار الثورية والمستقبلية.",
-      "الحوت": "تفكر بطريقة خيالية وحدسية. قد تجد صعوبة في التعبير عن أفكارك بوضوح دائماً."
-    },
-    "venus": {
-      // More interpretations
-      "الحمل": "تحب بحماس وعفوية، وتنجذب للتحديات في العلاقات. تقدر الاستقلالية والمغامرة في الحب.",
-      "الثور": "تقدر الجمال والرفاهية والاستقرار في العلاقات. تعبر عن حبك بطرق ملموسة وعملية.",
-      "الجوزاء": "تحتاج للتواصل الفكري في علاقاتك، وتقدر الخفة والمرح والتنوع في الحب.",
-      "السرطان": "تحب بعمق وإخلاص، وتقدر الأمان العاطفي والعلاقات الحميمية والدافئة.",
-      "الأسد": "رومانسي ودرامي في التعبير عن مشاعرك، وتقدر الإعجاب والإطراء في العلاقات.",
-      "العذراء": "دقيق في اختيار شريكك، وتهتم بالتفاصيل الصغيرة في العلاقة. تعبر عن حبك بالخدمة والاهتمام.",
-      "الميزان": "تقدر التوازن والجمال والتناغم في العلاقات. الشراكة والعدالة مهمة بالنسبة لك.",
-      "العقرب": "تحب بشكل عميق وشغوف، وتبحث عن العلاقات التي تلمس روحك وتغيرك.",
-      "القوس": "تقدر الحرية والمغامرة في العلاقات، وتنجذب لشريك يوسع آفاقك ويلهمك.",
-      "الجدي": "تأخذ الحب بجدية ومسؤولية، وتبحث عن علاقات طويلة الأمد ذات أساس متين.",
-      "الدلو": "تقدر الصداقة والاستقلالية في العلاقات، وتنجذب للشخصيات الفريدة والمختلفة.",
-      "الحوت": "رومانسي وحالم في الحب، وتسعى لعلاقة روحية تتجاوز الحدود المادية."
-    },
-    "mars": {
-      // And so on for other planets
-      "الحمل": "تتصرف بحماس وعفوية، وتبادر بشجاعة لتحقيق ما تريد. قد تكون متهوراً أحياناً.",
-      "الثور": "تعمل بثبات واستمرارية، ولديك إصرار كبير على تحقيق أهدافك المادية.",
-      "الجوزاء": "تصرفاتك سريعة ومتنوعة، وتستخدم ذكاءك وقدرتك على التواصل لتحقيق ما تريد.",
-      "السرطان": "تتصرف بناءً على مشاعرك وحدسك، وتدافع بقوة عن من تحب وما تؤمن به.",
-      "الأسد": "تتصرف بثقة وإبداع، وتضع قلبك في كل ما تفعله. تسعى للاعتراف بإنجازاتك.",
-      "العذراء": "تعمل بدقة وكفاءة، وتهتم بالتفاصيل. قد تكون ناقداً لنفسك وللآخرين.",
-      "الميزان": "تسعى للعدالة والتوازن في تصرفاتك، وقد تتردد قبل اتخاذ القرارات الحاسمة.",
-      "العقرب": "تتصرف بعمق وتصميم، ولديك قدرة هائلة على التركيز وتحقيق أهدافك.",
-      "القوس": "تتصرف بتفاؤل ومغامرة، وتبحث عن توسيع آفاقك وخبراتك باستمرار.",
-      "الجدي": "تعمل بجد ومثابرة، وتضع خططاً طويلة المدى وتلتزم بها.",
-      "الدلو": "تتصرف بطرق غير تقليدية، وتدافع عن آرائك المستقلة وأفكارك المبتكرة.",
-      "الحوت": "تتصرف بناءً على حدسك وإلهامك، وقد تكون متردداً أحياناً في المواقف التي تتطلب حسماً."
-    },
-    "jupiter": {
-      "الحمل": "تنمو وتتوسع من خلال المبادرات الشخصية والقيادة والمغامرات الجديدة.",
-      "الثور": "تزدهر من خلال بناء الثروة المادية والاستقرار وتقدير الجمال في الحياة.",
-      "الجوزاء": "تتوسع آفاقك من خلال التعلم والتواصل وتنويع معارفك وخبراتك.",
-      "السرطان": "تنمو من خلال تعميق روابطك العائلية والعاطفية وبناء قاعدة آمنة.",
-      "الأسد": "تزدهر من خلال الإبداع والتعبير عن نفسك والاحتفال بالحياة.",
-      "العذراء": "تتوسع من خلال تحسين مهاراتك العملية وخدمة الآخرين والاهتمام بالتفاصيل.",
-      "الميزان": "تنمو من خلال الشراكات المثمرة والتعاون وتحقيق التوازن في حياتك.",
-      "العقرب": "تزدهر من خلال التحولات العميقة والمواجهات المكثفة والاكتشافات الداخلية.",
-      "القوس": "تتوسع آفاقك من خلال السفر والتعلم العالي واستكشاف فلسفات جديدة.",
-      "الجدي": "تنمو من خلال بناء هياكل متينة في حياتك وتحمل المسؤولية والمثابرة.",
-      "الدلو": "تزدهر من خلال الابتكار والإصلاح الاجتماعي والصداقات المتنوعة.",
-      "الحوت": "تتوسع روحياً من خلال التعاطف والإيمان والتواصل مع العالم غير المرئي."
-    },
-    "saturn": {
-      "الحمل": "تواجه تحديات في بناء هويتك المستقلة وتطوير الصبر والتأني في مبادراتك.",
-      "الثور": "تتعلم دروساً في الأمن المادي والقيم الشخصية وتطوير الاكتفاء الداخلي.",
-      "الجوزاء": "تواجه تحديات في التواصل والتعلم، وتحتاج لتطوير التفكير المنظم والتركيز.",
-      "السرطان": "تتعلم دروساً في الحدود العاطفية والتوازن بين العمل والحياة الأسرية.",
-      "الأسد": "تواجه تحديات في التعبير الإبداعي وتطوير الثقة الحقيقية بدلاً من الغرور.",
-      "العذراء": "تتعلم دروساً في تحسين روتينك اليومي وتطوير مهاراتك العملية بتأنٍ.",
-      "الميزان": "تواجه تحديات في العلاقات والشراكات، وتتعلم بناء توازن بين الاستقلالية والاعتماد المتبادل.",
-      "العقرب": "تتعلم دروساً في مواجهة المخاوف العميقة والتعامل مع قضايا القوة والتحكم.",
-      "القوس": "تواجه تحديات في توسيع آفاقك بحكمة وبناء فلسفة حياة واقعية.",
-      "الجدي": "تتعلم دروساً في المسؤولية والطموح، وتطوير بنية داخلية قوية.",
-      "الدلو": "تواجه تحديات في التوازن بين الفردية والانتماء للمجموعة، وتطبيق أفكارك بواقعية.",
-      "الحوت": "تتعلم دروساً في وضع حدود للتعاطف وتحويل الأحلام إلى واقع ملموس."
-    }
-  };
-  
-  return interpretations[planet]?.[sign] || "يؤثر هذا الموقع على جانب مهم من جوانب شخصيتك وحياتك.";
-};
-
-// House interpretations
-const getHouseInterpretation = (house: number, sign: string): string => {
-  const houseInterpretations: Record<number, string> = {
-    1: "يؤثر على مظهرك الشخصي وكيف يراك الآخرون، وكذلك طريقة تعاملك مع العالم.",
-    2: "يتعلق بمواردك المادية، قيمك، وما تعتبره ثميناً في الحياة.",
-    3: "يرتبط بالتواصل، التعلم، والعلاقات مع الإخوة والجيران.",
-    4: "يتعلق بمنزلك، عائلتك، جذورك، والأمان العاطفي.",
-    5: "يرتبط بالإبداع، المتعة، الأطفال، والتعبير عن الذات.",
-    6: "يتعلق بالعمل اليومي، الصحة، والخدمة للآخرين.",
-    7: "يرتبط بالشراكات الشخصية والتجارية، والعلاقات الوثيقة.",
-    8: "يتعلق بالتحولات، الموارد المشتركة، والعمق النفسي.",
-    9: "يرتبط بالسفر، التعليم العالي، والفلسفة الشخصية.",
-    10: "يتعلق بالمهنة، المكانة الاجتماعية، والإنجازات العامة.",
-    11: "يرتبط بالصداقات، المجموعات، والأهداف المستقبلية.",
-    12: "يتعلق بالعالم الباطني، التضحية، والخدمة اللامشروطة."
-  };
-  
-  return `${houseInterpretations[house] || ""} وجود برج ${sign} ${getZodiacEmoji(sign)} هنا يضيف طاقة خاصة لهذا المجال من حياتك.`;
-};
-
-// Ascendant and Midheaven interpretations
-const getAscendantInterpretation = (sign: string): string => {
+// Detailed interpretation functions for each planet sign
+const getSunSignInterpretation = (sign: string): string => {
+  // Comprehensive interpretations for each sign
   const interpretations: Record<string, string> = {
-    "الحمل": "تظهر للعالم كشخص مبادر وجريء ومستقل. يرى الناس أنك مفعم بالطاقة والحماس.",
-    "الثور": "تبدو للآخرين مستقراً وموثوقاً وعملياً. يرى الناس فيك الثبات والقوة الهادئة.",
-    "الجوزاء": "تظهر للعالم كشخص فضولي ومتكيف واجتماعي. يراك الناس ذكياً وخفيف الظل.",
-    "السرطان": "تبدو للآخرين حساساً وراعياً وعاطفياً. يرى الناس فيك الشخص الذي يمكن الاعتماد عليه عاطفياً.",
-    "الأسد": "تظهر للعالم كشخص واثق وكريم وإبداعي. يراك الناس قائداً طبيعياً يجذب الانتباه.",
-    "العذراء": "تبدو للآخرين منظماً ودقيقاً ومفيداً. يرى الناس فيك الشخص العملي والتحليلي.",
-    "الميزان": "تظهر للعالم كشخص دبلوماسي ولطيف ومنصف. يراك الناس شخصاً اجتماعياً يسعى للتوازن.",
-    "العقرب": "تبدو للآخرين غامضاً وعميقاً ومكثفاً. يرى الناس فيك قوة وتصميماً لا يُقهران.",
-    "القوس": "تظهر للعالم كشخص متفائل ومغامر وصريح. يراك الناس منفتحاً على آفاق جديدة.",
-    "الجدي": "تبدو للآخرين جدياً ومسؤولاً وطموحاً. يرى الناس فيك الشخص الجدير بالاحترام.",
-    "الدلو": "تظهر للعالم كشخص مستقل وفريد ومبتكر. يراك الناس متقدماً على عصرك.",
-    "الحوت": "تبدو للآخرين حساساً وحالماً ومتعاطفاً. يرى الناس فيك الشخص الروحاني واللطيف."
+    "Libra": "تتميز بشخصية متوازنة وديبلوماسية، تسعى دائماً للعدالة والتناغم في حياتك. لديك حس فني متطور وقدرة على رؤية وجهات النظر المختلفة. تميل للتعاون والشراكات المتوازنة، وتجد سعادتك في خلق توازن في العلاقات والمواقف.",
+    "Aries": "تتميز بالشجاعة والاندفاع، وتحب أن تكون في المقدمة. أنت قائد بالفطرة ومتحمس لكل ما هو جديد.",
+    "Taurus": "تتميز بالصبر والثبات، وتقدر الجمال والراحة. أنت شخص عملي وموثوق.",
+    "Gemini": "تتميز بالذكاء والفضول، وتحب التواصل والتعلم. أنت شخص اجتماعي ومتعدد المواهب.",
+    "Cancer": "تتميز بالعاطفة والحساسية، وتحب العائلة والمنزل. أنت شخص وفي ومهتم بالآخرين.",
+    "Leo": "تتميز بالكرم والإبداع، وتحب أن تكون محط الأنظار. أنت شخص واثق ومحب للحياة.",
+    "Virgo": "تتميز بالدقة والتحليل، وتحب النظام والترتيب. أنت شخص عملي ومنظم.",
+    "Scorpio": "تتميز بالقوة والعزيمة، وتحب الغموض والتحول. أنت شخص شغوف ومخلص.",
+    "Sagittarius": "تتميز بالتفاؤل والمغامرة، وتحب السفر والاستكشاف. أنت شخص حر ومستقل.",
+    "Capricorn": "تتميز بالطموح والمسؤولية، وتحب النجاح والتقدير. أنت شخص جاد ومجتهد.",
+    "Aquarius": "تتميز بالابتكار والاستقلالية، وتحب التغيير والتجديد. أنت شخص فريد ومفكر.",
+    "Pisces": "تتميز بالرحمة والخيال، وتحب الفن والروحانية. أنت شخص حساس ومتعاطف."
   };
   
-  return interpretations[sign] || "الطالع يمثل القناع الذي ترتديه للعالم، وكيف يراك الآخرون للوهلة الأولى.";
+  return interpretations[sign] || "لم يتم العثور على تفسير محدد لهذا البرج.";
 };
 
-const getMidheavenInterpretation = (sign: string): string => {
+const getMoonSignInterpretation = (sign: string): string => {
   const interpretations: Record<string, string> = {
-    "الحمل": "تميل لمسار مهني يتيح لك المبادرة والقيادة. قد تنجذب للمهن التي تتطلب الشجاعة والعمل المستقل.",
-    "الثور": "تسعى للاستقرار المهني والأمن المادي. قد تنجح في المجالات المالية أو التي تتعامل مع الموارد الملموسة.",
-    "الجوزاء": "تميل للمهن التي تتطلب التواصل والمرونة الفكرية. قد تنجذب للكتابة، التدريس، أو الإعلام.",
-    "السرطان": "تسعى لمسار مهني يشبع احتياجاتك العاطفية. قد تنجح في المهن المتعلقة بالرعاية والخدمات الإنسانية.",
-    "الأسد": "تميل للمهن التي تضعك في دائرة الضوء. قد تنجذب للفنون، الترفيه، أو المناصب القيادية.",
-    "العذراء": "تسعى لإتقان مهارات محددة في مسارك المهني. قد تنجح في المجالات التي تتطلب التحليل والدقة.",
-    "الميزان": "تميل للمهن التي تتعامل مع العدالة والجمال. قد تنجذب للقانون، التصميم، أو الدبلوماسية.",
-    "العقرب": "تسعى لمسار مهني يتيح لك التأثير العميق والتحول. قد تنجح في مجالات البحث، علم النفس، أو إدارة الموارد.",
-    "القوس": "تميل للمهن التي توسع آفاقك الفكرية والجغرافية. قد تنجذب للتعليم العالي، النشر، أو العمل الدولي.",
-    "الجدي": "تسعى لبناء سمعة مهنية قوية ومكانة اجتماعية مرموقة. قد تنجح في الإدارة، الأعمال، أو المؤسسات الرسمية.",
-    "الدلو": "تميل للمهن المبتكرة والتي تخدم المجتمع. قد تنجذب للتكنولوجيا، العمل الإنساني، أو المجالات المستقبلية.",
-    "الحوت": "تسعى لمسار مهني يتوافق مع قيمك الروحية. قد تنجح في الفنون، الرعاية الصحية، أو المجالات الروحانية."
+    "Libra": "تحتاج إلى التوازن والانسجام في حياتك العاطفية. تسعى للعلاقات المتوازنة وتكره الصراعات.",
+    "Aries": "تعبر عن مشاعرك بصدق واندفاع. تحتاج إلى مساحة حرة للتعبير عن نفسك.",
+    "Taurus": "تبحث عن الاستقرار والأمان في علاقاتك. تقدر اللحظات الهادئة والمريحة.",
+    "Gemini": "تحتاج إلى التحفيز الفكري والتواصل في علاقاتك. تحب التنوع والتجديد.",
+    "Cancer": "تعتني بمن حولك وتحتاج إلى الشعور بالأمان والحماية. تقدر العائلة والتقاليد.",
+    "Leo": "تحب أن تكون محط اهتمام وتقدير في علاقاتك. تعبر عن مشاعرك بحماس وكرم.",
+    "Virgo": "تحتاج إلى النظام والترتيب في حياتك العاطفية. تعبر عن حبك بالخدمة والاهتمام بالتفاصيل.",
+    "Scorpio": "تعيش مشاعرك بعمق وشغف. تحتاج إلى علاقات صادقة ومخلصة.",
+    "Sagittarius": "تحتاج إلى الحرية والمغامرة في علاقاتك. تحب استكشاف آفاق جديدة.",
+    "Capricorn": "تأخذ علاقاتك بجدية ومسؤولية. تبحث عن الاستقرار والالتزام على المدى الطويل.",
+    "Aquarius": "تحتاج إلى مساحة شخصية واستقلالية في علاقاتك. تقدر الصداقة والمساواة.",
+    "Pisces": "تتعاطف مع الآخرين وتحتاج إلى علاقات روحية. تحب الأحلام والخيال."
   };
   
-  return interpretations[sign] || "الميدهيفن يمثل مسارك المهني وصورتك العامة في المجتمع، وكيف يمكن أن تحقق النجاح.";
+  return interpretations[sign] || "لم يتم العثور على تفسير محدد لهذا البرج.";
 };
 
-// Psychological profile based on sun, moon and ascendant
-const getPsychologicalProfile = (sun: string, moon: string, ascendant: string | null): string => {
-  // This would be much more complex in reality, but for simplicity:
-  let traits = "";
+const getMercurySignInterpretation = (sign: string, retrograde: boolean): string => {
+  const interpretations: Record<string, string> = {
+    "Libra": "تتواصل بلطف ودبلوماسية، وتسعى للعدالة والتوازن في أفكارك. تقدر الحوار البناء والتعاون.",
+    "Aries": "تعبر عن أفكارك بجرأة واندفاع. أنت مباشر وصريح في كلامك.",
+    "Taurus": "تفكر بتأنٍ وعملية. تحتاج إلى وقت لمعالجة المعلومات الجديدة.",
+    "Gemini": "تتواصل بذكاء وفضول. تحب تبادل الأفكار والمعلومات.",
+    "Cancer": "تفكر بعاطفة وحدس. تتأثر أفكارك بمشاعرك وذكرياتك.",
+    "Leo": "تعبر عن أفكارك بثقة وإبداع. تحب أن تكون مسموعاً ومؤثراً.",
+    "Virgo": "تحلل المعلومات بدقة وتهتم بالتفاصيل. لديك عقل نقدي ومنظم.",
+    "Scorpio": "تفكر بعمق وتبحث عما هو مخفي. لديك قدرة على كشف الحقائق والأسرار.",
+    "Sagittarius": "تفكر بتفاؤل وفلسفة. تحب استكشاف أفكار جديدة.",
+    "Capricorn": "تفكر بطريقة منظمة وعملية. تقيم الأفكار بناءً على فائدتها الواقعية.",
+    "Aquarius": "تفكر بطريقة مبتكرة وغير تقليدية. تستمتع بالأفكار الثورية والمستقبلية.",
+    "Pisces": "تفكر بخيال وإلهام. قد تجد صعوبة في التعبير عن أفكارك بوضوح دائماً."
+  };
   
-  switch (sun) {
-    case "الحمل":
-    case "الأسد":
-    case "القوس":
-      traits += "شخصية نارية، مفعمة بالحماس والطاقة الإبداعية";
-      break;
-    case "الثور":
-    case "العذراء":
-    case "الجدي":
-      traits += "شخصية ترابية، عملية وموثوقة";
-      break;
-    case "الجوزاء":
-    case "الميزان":
-    case "الدلو":
-      traits += "شخصية هوائية، تميل للتفكير والتواصل";
-      break;
-    case "السرطان":
-    case "العقرب":
-    case "الحوت":
-      traits += "شخصية مائية، عاطفية وحدسية";
-      break;
+  let interpretation = interpretations[sign] || "لم يتم العثور على تفسير محدد لهذا البرج.";
+  if (retrograde) {
+    interpretation += " قد تواجه بعض التأخير أو التحديات في التواصل والتعبير عن أفكارك.";
   }
-  
-  traits += ". ";
-  
-  // Add moon influence
-  if (moon === "الحمل" || moon === "الأسد" || moon === "القوس") {
-    traits += "عواطفك قوية ومباشرة";
-  } else if (moon === "الثور" || moon === "العذراء" || moon === "الجدي") {
-    traits += "مشاعرك مستقرة وعملية";
-  } else if (moon === "الجوزاء" || moon === "الميزان" || moon === "الدلو") {
-    traits += "تتعامل مع مشاعرك بعقلانية";
-  } else {
-    traits += "عواطفك عميقة وحدسية";
-  }
-  
-  traits += ". ";
-  
-  // Add ascendant if available
-  if (ascendant) {
-    traits += `يراك الآخرون شخصاً ${ascendant === "الحمل" || ascendant === "الأسد" || ascendant === "القوس" ? "واثقاً ومؤثراً" : 
-              ascendant === "الثور" || ascendant === "العذراء" || ascendant === "الجدي" ? "موثوقاً ومتأنياً" :
-              ascendant === "الجوزاء" || ascendant === "الميزان" || ascendant === "الدلو" ? "اجتماعياً ومتكيفاً" :
-              "حساساً ومتعاطفاً"}.`;
-  }
-  
-  return traits;
+  return interpretation;
 };
 
-// Love profile based on venus and mars
-const getLoveProfile = (venus: string, mars: string, moon: string): string => {
-  let traits = "";
+const getVenusSignInterpretation = (sign: string, retrograde: boolean): string => {
+  const interpretations: Record<string, string> = {
+    "Libra": "تحب الجمال والتناغم في علاقاتك. تسعى للعدالة والإنصاف في الحب.",
+    "Aries": "تحب المغامرة والإثارة في الحب. تنجذب إلى الشركاء الواثقين والمستقلين.",
+    "Taurus": "تحب الراحة والاستقرار في الحب. تقدر اللحظات الهادئة والممتعة مع شريكك.",
+    "Gemini": "تحتاج إلى التحفيز الفكري والتواصل في الحب. تنجذب إلى الشركاء الأذكياء والاجتماعيين.",
+    "Cancer": "تحب الرعاية والحماية في الحب. تقدر العائلة والمنزل.",
+    "Leo": "تحب الإعجاب والتقدير في الحب. تنجذب إلى الشركاء الذين يظهرون لك الاهتمام.",
+    "Virgo": "تحب الخدمة والاهتمام بالتفاصيل في الحب. تقدر الشركاء العمليين والمنظمين.",
+    "Scorpio": "تحب الشغف والعمق في الحب. تنجذب إلى الشركاء المخلصين والمتحمسين.",
+    "Sagittarius": "تحب الحرية والمغامرة في الحب. تنجذب إلى الشركاء الذين يشاركونك حب الاستكشاف.",
+    "Capricorn": "تحب الالتزام والمسؤولية في الحب. تقدر الشركاء الجادين والمجتهدين.",
+    "Aquarius": "تحب الصداقة والاستقلالية في الحب. تنجذب إلى الشركاء الفريدين والمبتكرين.",
+    "Pisces": "تحب الرومانسية والخيال في الحب. تنجذب إلى الشركاء الحساسين والمتعاطفين."
+  };
   
-  // Venus influence
-  if (venus === "الحمل" || venus === "الأسد" || venus === "القوس") {
-    traits += "تنجذب للعلاقات المليئة بالحماس والمغامرة";
-  } else if (venus === "الثور" || venus === "العذراء" || venus === "الجدي") {
-    traits += "تقدّر الاستقرار والأمان في العلاقات";
-  } else if (venus === "الجوزاء" || venus === "الميزان" || venus === "الدلو") {
-    traits += "تبحث عن شريك يشاركك الأفكار والتواصل الفكري";
-  } else {
-    traits += "تسعى لعلاقة عميقة وروحية";
+  let interpretation = interpretations[sign] || "لم يتم العثور على تفسير محدد لهذا البرج.";
+  if (retrograde) {
+    interpretation += " قد تواجه بعض التحديات في العلاقات أو صعوبة في التعبير عن مشاعرك.";
   }
-  
-  traits += ". ";
-  
-  // Mars influence
-  if (mars === "الحمل" || mars === "الأسد" || mars === "القوس") {
-    traits += "تعبر عن رغباتك بصراحة وحماس";
-  } else if (mars === "الثور" || mars === "العذراء" || mars === "الجدي") {
-    traits += "تتصرف بثبات ووفاء في علاقاتك";
-  } else if (mars === "الجوزاء" || mars === "الميزان" || mars === "الدلو") {
-    traits += "تفضل التنوع والتجديد في العلاقة";
-  } else {
-    traits += "تقترب من الشريك بحساسية وتعاطف";
-  }
-  
-  return traits;
+  return interpretation;
 };
 
-// Career profile
-const getCareerProfile = (sun: string, jupiter: string, saturn: string, midheaven: string | null): string => {
-  let traits = "";
+const getMarsSignInterpretation = (sign: string, retrograde: boolean): string => {
+  const interpretations: Record<string, string> = {
+    "Libra": "تتصرف بدبلوماسية وتوازن، وتسعى للعدالة والانسجام في أفعالك. قد تتردد قبل اتخاذ القرارات الحاسمة.",
+    "Aries": "تتصرف بشجاعة واندفاع، وتبادر بقوة لتحقيق ما تريد. قد تكون متهوراً أحياناً.",
+    "Taurus": "تتصرف بثبات وصبر، وتعمل بجد لتحقيق أهدافك المادية. قد تكون عنيداً في بعض الأحيان.",
+    "Gemini": "تتصرف بذكاء وسرعة، وتستخدم قدرتك على التواصل لتحقيق ما تريد. قد تكون متقلباً في اهتماماتك.",
+    "Cancer": "تتصرف بعاطفة وحدس، وتدافع بقوة عن من تحب وما تؤمن به. قد تكون حساساً جداً.",
+    "Leo": "تتصرف بثقة وإبداع، وتسعى للاعتراف بإنجازاتك. قد تكون متطلباً للاهتمام.",
+    "Virgo": "تتصرف بدقة وكفاءة، وتهتم بالتفاصيل. قد تكون ناقداً لنفسك وللآخرين.",
+    "Scorpio": "تتصرف بعمق وتصميم، ولديك قدرة هائلة على التركيز وتحقيق أهدافك. قد تكون غامضاً ومسيطراً.",
+    "Sagittarius": "تتصرف بتفاؤل ومغامرة، وتبحث عن توسيع آفاقك وخبراتك باستمرار. قد تكون مفرطاً في التفاؤل.",
+    "Capricorn": "تتصرف بجدية ومسؤولية، وتضع خططاً طويلة المدى وتلتزم بها. قد تكون متحفظاً جداً.",
+    "Aquarius": "تتصرف بطرق غير تقليدية، وتدافع عن آرائك المستقلة وأفكارك المبتكرة. قد تكون متمرداً.",
+    "Pisces": "تتصرف بناءً على حدسك وإلهامك، وقد تكون متردداً أحياناً في المواقف التي تتطلب حسماً. قد تكون مثالياً جداً."
+  };
   
-  // Sun influence
-  if (sun === "الحمل" || sun === "الأسد" || sun === "القوس") {
-    traits += "تميل للمهن التي تتيح لك القيادة وإظهار إبداعك";
-  } else if (sun === "الثور" || sun === "العذراء" || sun === "الجدي") {
-    traits += "تنجح في المجالات التي تتطلب الثبات والمنهجية";
-  } else if (sun === "الجوزاء" || sun === "الميزان" || sun === "الدلو") {
-    traits += "تتفوق في المهن التي تعتمد على التواصل والأفكار المبتكرة";
-  } else {
-    traits += "تبرز في المجالات التي تتطلب الحدس والتعاطف";
+  let interpretation = interpretations[sign] || "لم يتم العثور على تفسير محدد لهذا البرج.";
+  if (retrograde) {
+    interpretation += " قد تواجه بعض الإحباط أو التأخير في تحقيق أهدافك.";
   }
-  
-  traits += ". ";
-  
-  // Add midheaven if available
-  if (midheaven) {
-    traits += `مسارك المهني يتجه نحو ${midheaven === "الحمل" || midheaven === "الأسد" || midheaven === "القوس" ? "مجالات إبداعية أو قيادية" : 
-              midheaven === "الثور" || midheaven === "العذراء" || midheaven === "الجدي" ? "مجالات عملية ومستقرة" :
-              midheaven === "الجوزاء" || midheaven === "الميزان" || midheaven === "الدلو" ? "مجالات فكرية أو اجتماعية" :
-              "مجالات تساعد الآخرين أو تتطلب إلهاماً"}.`;
-  }
-  
-  return traits;
+  return interpretation;
 };
 
-// Life path
-const getLifePathProfile = (sun: string, moon: string, jupiter: string): string => {
-  let traits = "";
+const getAscendantSignInterpretation = (sign: string): string => {
+  const interpretations: Record<string, string> = {
+    "Libra": "تظهر للعالم كشخص دبلوماسي ولطيف ومنصف. يراك الناس شخصاً اجتماعياً يسعى للتوازن والانسجام.",
+    "Aries": "تظهر للعالم كشخص مبادر وجريء ومستقل. يراك الناس مفعماً بالطاقة والحماس.",
+    "Taurus": "تظهر للعالم كشخص مستقر وموثوق وعملي. يراك الناس شخصاً جديراً بالثقة.",
+    "Gemini": "تظهر للعالم كشخص ذكي وفضولي واجتماعي. يراك الناس شخصاً مرحاً ومثيراً للاهتمام.",
+    "Cancer": "تظهر للعالم كشخص حساس وراعٍ وعاطفي. يراك الناس شخصاً دافئاً وودوداً.",
+    "Leo": "تظهر للعالم كشخص واثق وكريم ومبدع. يراك الناس قائداً طبيعياً.",
+    "Virgo": "تظهر للعالم كشخص منظم ودقيق ومفيد. يراك الناس شخصاً عملياً وموثوقاً.",
+    "Scorpio": "تظهر للعالم كشخص غامض وعميق ومكثف. يراك الناس شخصاً قوياً ومسيطراً.",
+    "Sagittarius": "تظهر للعالم كشخص متفائل ومغامر وصريح. يراك الناس شخصاً منفتحاً ومستقلاً.",
+    "Capricorn": "تظهر للعالم كشخص جدي ومسؤول وطموح. يراك الناس شخصاً جديراً بالاحترام.",
+    "Aquarius": "تظهر للعالم كشخص مستقل وفريد ومبتكر. يراك الناس شخصاً غير تقليدي.",
+    "Pisces": "تظهر للعالم كشخص حساس وحالم ومتعاطف. يراك الناس شخصاً روحانياً ولطيفاً."
+  };
   
-  // Sun and moon combination
-  if ((sun === "الحمل" || sun === "الأسد" || sun === "القوس") && 
-      (moon === "الحمل" || moon === "الأسد" || moon === "القوس")) {
-    traits += "مسارك الحياتي مليء بالطاقة والإبداع والمغامرات";
-  } else if ((sun === "الثور" || sun === "العذراء" || sun === "الجدي") && 
-             (moon === "الثور" || moon === "العذراء" || moon === "الجدي")) {
-    traits += "مسارك الحياتي يركز على بناء أسس متينة والإنجازات العملية";
-  } else if ((sun === "الجوزاء" || sun === "الميزان" || sun === "الدلو") && 
-             (moon === "الجوزاء" || moon === "الميزان" || moon === "الدلو")) {
-    traits += "مسارك الحياتي يتجه نحو التعلم المستمر والتواصل وتطوير الأفكار الجديدة";
-  } else if ((sun === "السرطان" || sun === "العقرب" || sun === "الحوت") && 
-             (moon === "السرطان" || sun === "العقرب" || sun === "الحوت")) {
-    traits += "مسارك الحياتي عميق وتحويلي، يركز على النمو العاطفي والروحي";
-  } else {
-    traits += "مسارك الحياتي متنوع ومتعدد الأبعاد، يجمع بين جوانب مختلفة من شخصيتك";
-  }
-  
-  return traits;
+  return interpretations[sign] || "لم يتم العثور على تفسير محدد لهذا البرج.";
 };
-
-// Detect notable planetary patterns
-const getNotablePlanetary = (chart: any): string[] | null => {
-  const patterns = [];
-  
-  // Convert the planets object to an array format for analysis
-  const planetsArray = Object.entries(chart.planets).map(([name, data]: [string, any]) => ({
-    planet: name,
-    sign: data.sign,
-    degree: data.degree,
-    retrograde: data.retrograde
-  }));
-  
-  // Group planets by sign
-  const planetsBySign: Record<string, any[]> = {};
-  planetsArray.forEach(planet => {
-    if (!planetsBySign[planet.sign]) {
-      planetsBySign[planet.sign] = [];
-    }
-    planetsBySign[planet.sign].push(planet);
-  });
-  
-  // Check for stellium (3 or more planets in one sign)
-  Object.entries(planetsBySign).forEach(([sign, planets]) => {
-    if (planets.length >= 3) {
-      const planetNames = planets.map(p => planetNames[p.planet as keyof typeof planetNames] || p.planet).join("، ");
-      patterns.push(`تراكم في برج ${getArabicZodiacSign(sign)} ${getZodiacEmoji(getArabicZodiacSign(sign))}: ${planetNames}. هذا يعزز تأثير برج ${getArabicZodiacSign(sign)} في شخصيتك ومسار حياتك.`);
-    }
-  });
-  
-  return patterns.length > 0 ? patterns : null;
-};
-
+// Similar detailed functions for Moon, Mercury, Venus, Mars, and Ascendant...
